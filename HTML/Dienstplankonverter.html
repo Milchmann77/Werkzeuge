@@ -1,0 +1,1467 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dienstplan grafisch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+
+  --paper:#e9ecef; --sheet:#ffffff; --sheet2:#f5f7f8;
+  --ink:#14181c; --ink-soft:#5d6874;
+  --rule:#c6ccd3; --grid:#e4e8ec; --grid-hour:#b7bfc7;
+  --green:#00753a; --field:#f2f4f6; --focus:#1f5fa8; --red:#c0322b;
+  --on-solid:#ffffff; --track:#cfd5db;
+
+  /* Farben der Schichtplanlegende */
+  --c-train:#000000;      /* Zugfahrt */
+  --c-va1:#0b2fbe;        /* Vor-/Abschlussdienst V1/A1 */
+  --c-va:#8fb6e8;         /* Vor-/Abschlussdienst sonstige */
+  --c-res:#ffffff;        /* Reserve, betr. Vor-/Nachbereitung */
+  --c-line:#14181c;       /* Umrandung */
+  --c-shunt:#b9c0c8;      /* Leerzug / Rangierfahrt */
+  --c-shunt2:#eef1f3;     /* Schraffur darin */
+  --c-gast:#f07d00;       /* Gastfahrt / Taxifahrt */
+  --c-walk:#e9edf0;       /* Fußweg */
+  --c-vatext:#0b2fbe;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#0e1114; --sheet:#171b20; --sheet2:#1d232a;
+    --ink:#e6eaee; --ink-soft:#97a2ad;
+    --rule:#2d343c; --grid:#232a31; --grid-hour:#3b444e;
+    --green:#41c07d; --field:#20262d; --focus:#6ea8e8; --red:#e8635c;
+    --on-solid:#12161a; --track:#39424b;
+    --c-train:#e9edf1; --c-va1:#6d8cf5; --c-va:#3f5f8c;
+    --c-res:#171b20; --c-line:#98a4b0;
+    --c-shunt:#59636e; --c-shunt2:#2a323a;
+    --c-gast:#f08a1f; --c-walk:#242b33; --c-vatext:#8aa5f7;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0e1114; --sheet:#171b20; --sheet2:#1d232a;
+  --ink:#e6eaee; --ink-soft:#97a2ad;
+  --rule:#2d343c; --grid:#232a31; --grid-hour:#3b444e;
+  --green:#41c07d; --field:#20262d; --focus:#6ea8e8; --red:#e8635c;
+  --on-solid:#12161a; --track:#39424b;
+  --c-train:#e9edf1; --c-va1:#6d8cf5; --c-va:#3f5f8c;
+  --c-res:#171b20; --c-line:#98a4b0;
+  --c-shunt:#59636e; --c-shunt2:#2a323a;
+  --c-gast:#f08a1f; --c-walk:#242b33; --c-vatext:#8aa5f7;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px);background:var(--paper)}
+body{margin:0;height:100%;background:var(--paper);color:var(--ink);
+  font-family:"Barlow",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-size:15px;line-height:1.45;-webkit-text-size-adjust:100%}
+
+.topbar{position:sticky;top:0;z-index:20;padding:10px 14px;
+  padding-top:calc(10px + env(safe-area-inset-top,0px));
+  background:var(--sheet);border-bottom:1px solid var(--rule);display:flex;align-items:center;gap:12px}
+.topbar h1{font-family:"Barlow Semi Condensed","Barlow",sans-serif;font-size:19px;font-weight:700;margin:0;flex:1}
+.topbar h1 small{display:block;font-size:12px;font-weight:500;color:var(--ink-soft)}
+.rail{width:6px;align-self:stretch;min-height:34px;background:var(--green);border-radius:3px}
+
+main{max-width:1200px;margin:0 auto;padding:16px 12px 56px}
+button{font:inherit;color:inherit}
+.btn{border:1px solid var(--rule);background:var(--sheet);border-radius:8px;padding:9px 14px;cursor:pointer;font-weight:500}
+.btn:hover{background:var(--sheet2)}
+.btn:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible,.tab:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.btn-primary{background:var(--green);border-color:var(--green);color:var(--on-solid);font-weight:600}
+.btn-primary:hover{filter:brightness(1.06);background:var(--green)}
+.btn-ghost{background:transparent}
+
+.intro{background:var(--sheet);border:1px solid var(--rule);border-radius:12px;padding:22px 18px;max-width:640px;margin:8px auto}
+.intro h2{margin:0 0 6px;font-size:20px;font-family:"Barlow Semi Condensed",sans-serif;font-weight:700}
+.intro p{margin:0 0 18px;color:var(--ink-soft)}
+.drop{border:1.5px dashed var(--rule);border-radius:10px;background:var(--sheet2);padding:26px 16px;text-align:center;transition:border-color .15s,background .15s}
+.drop.over{border-color:var(--green);background:var(--sheet)}
+.drop p{margin:10px 0 0;font-size:13px;color:var(--ink-soft)}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+details.paste{margin-top:14px;font-size:14px}
+details.paste summary{cursor:pointer;color:var(--ink-soft)}
+textarea{width:100%;min-height:130px;margin-top:8px;padding:10px;border-radius:8px;border:1px solid var(--rule);background:var(--field);color:var(--ink);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+.err{margin-top:12px;padding:10px 12px;border-radius:8px;background:var(--field);border:1px solid var(--red);font-size:14px}
+
+.sheet{background:var(--sheet);border:1px solid var(--rule);border-radius:12px;overflow:hidden}
+.duty-head{display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px 22px;padding:14px 16px;border-bottom:1px solid var(--rule)}
+.duty-no{font-family:"Barlow Semi Condensed",sans-serif;font-size:38px;font-weight:700;line-height:.95}
+.duty-no span{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);letter-spacing:.06em;line-height:1.6}
+.facts{display:flex;flex-wrap:wrap;gap:12px 20px;flex:1}
+.fact{min-width:66px}
+.fact b{display:block;font-family:"Barlow Semi Condensed",sans-serif;font-size:19px;font-weight:600;line-height:1.2}
+.fact i{display:block;font-style:normal;font-size:11.5px;color:var(--ink-soft)}
+
+.duty-note{padding:9px 16px;border-bottom:1px solid var(--rule);background:var(--sheet2);font-size:13.5px;border-left:4px solid var(--c-va1)}
+.duty-note b{font-family:"Barlow Semi Condensed",sans-serif;font-weight:700}
+.tabs{display:flex;gap:2px;padding:10px 12px 0;border-bottom:1px solid var(--rule);flex-wrap:wrap}
+.tab{border:1px solid transparent;border-bottom:none;background:none;padding:7px 14px;border-radius:8px 8px 0 0;cursor:pointer;color:var(--ink-soft);font-weight:500;margin-bottom:-1px}
+.tab[aria-selected="true"]{background:var(--sheet);border-color:var(--rule);color:var(--ink);font-weight:600}
+
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--rule);background:var(--sheet2)}
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--sheet)}
+.seg button{border:none;background:none;padding:7px 11px;cursor:pointer;font-size:13.5px;font-weight:500;color:var(--ink-soft);border-right:1px solid var(--rule)}
+.seg button:last-child{border-right:none}
+.seg button[aria-pressed="true"]{background:var(--green);color:var(--on-solid);font-weight:600}
+.toolbar label{font-size:13px;color:var(--ink-soft);display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.hint{font-size:12.5px;color:var(--ink-soft)}
+
+.graphic{padding:8px 4px 14px;overflow:hidden}
+.hscroll{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px}
+.strip{display:block;margin:0 auto 4px}
+.strip + .strip{border-top:1px dashed var(--grid);margin-top:4px}
+
+.strip text{fill:var(--ink);font-family:"Barlow Semi Condensed","Barlow",Arial Narrow,sans-serif;font-size:9.5px;font-weight:500}
+.strip .ruler{fill:var(--ink-soft);font-size:11px;font-weight:600}
+.strip .ruler-day{fill:var(--ink);font-weight:700}
+.strip .gl-hour{stroke:var(--grid-hour);stroke-width:1}
+.strip .gl-half{stroke:var(--grid);stroke-width:1;stroke-dasharray:2 4}
+.strip .gl-day{stroke:var(--ink-soft);stroke-width:1.4}
+.strip .track{fill:var(--track)}
+.strip .lbl-st{font-weight:700;font-size:10px}
+.strip .lbl-num{fill:var(--ink-soft);font-size:9.5px;font-weight:600}
+.strip .lbl-time{fill:var(--ink-soft);font-size:9.5px}
+.strip .lbl-va{font-size:9px;font-weight:700;fill:var(--c-vatext)}
+.strip .zs{stroke:var(--c-line);stroke-width:1.1}
+.strip .seg{stroke:var(--c-line);stroke-width:1}
+.strip .c-train{fill:var(--c-train)}
+.strip .c-va1{fill:var(--c-va1)}
+.strip .c-va{fill:var(--c-va)}
+.strip .c-res{fill:var(--c-res)}
+.strip .c-shunt{fill:var(--c-shunt)}
+.strip .c-gast{fill:var(--c-gast)}
+.strip .c-walk{fill:var(--c-walk)}
+.strip .hatch{stroke:var(--c-shunt2);stroke-width:1.2}
+.strip .in-break{fill:var(--ink);font-weight:700;font-size:12px}
+.strip .mark{fill:var(--c-train)}
+.strip .anm rect{fill:var(--sheet);stroke:var(--c-line);stroke-width:1}
+.strip .anm text{font-size:8.5px;font-weight:700;fill:var(--ink)}
+.strip .now{stroke:var(--red);stroke-width:1.4;stroke-dasharray:4 3}
+.strip .now-t{fill:var(--red);font-weight:700;font-size:9.5px}
+.strip .hit{fill:none;pointer-events:all;cursor:pointer}
+.strip g:hover .seg,.strip g.sel .seg,.strip g.sel .mark{stroke:var(--red);stroke-width:2}
+
+.detail{margin:0 14px 14px;padding:11px 13px;border:1px solid var(--rule);border-left:4px solid var(--green);border-radius:8px;background:var(--sheet2);font-size:14px}
+.detail b{font-family:"Barlow Semi Condensed",sans-serif;font-size:16px}
+.detail .meta{color:var(--ink-soft);font-size:13px}
+.detail .expl{margin-top:5px;font-size:13px;border-top:1px dotted var(--rule);padding-top:5px}
+
+.anmlist{margin:0 16px 16px;padding:0 0 0 24px;font-size:13px}
+.anmlist li{margin:4px 0}
+.anmlist li::marker{font-family:"Barlow Semi Condensed",sans-serif;font-weight:700;color:var(--ink-soft)}
+.anmhead{margin:0 16px 4px;font-family:"Barlow Semi Condensed",sans-serif;font-weight:700;font-size:15px}
+.row .n{font-size:12.5px;margin-top:2px;padding-left:8px;border-left:2px solid var(--c-va1)}
+.detail .note{margin-top:5px;font-size:13px;padding-left:8px;border-left:2px solid var(--c-va1)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;padding:0 16px 16px;font-size:12.5px;color:var(--ink-soft)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.key{width:22px;height:12px;border:1px solid var(--c-line);flex:none}
+.k-train{background:var(--c-train)}
+.k-va1{background:var(--c-va1)}
+.k-va{background:var(--c-va)}
+.k-res{background:var(--c-res)}
+.k-shunt{background:repeating-linear-gradient(0deg,var(--c-shunt) 0 2px,var(--c-shunt2) 2px 3px)}
+.k-gast{background:var(--c-gast)}
+.k-walk{background:var(--c-walk)}
+.k-mark{background:var(--c-train);border-radius:50%}
+
+.list{padding:4px 0 10px}
+.row{display:flex;gap:12px;padding:9px 16px;border-bottom:1px solid var(--grid);align-items:baseline}
+.row:last-child{border-bottom:none}
+.row .t{font-family:"Barlow Semi Condensed",sans-serif;font-variant-numeric:tabular-nums;font-weight:600;font-size:14.5px;white-space:nowrap;min-width:96px}
+.row .c{flex:1;min-width:0}
+.row .k{font-weight:600}
+.row .r{color:var(--ink-soft);font-size:13.5px;word-break:break-word}
+.row .x{font-size:12.5px;color:var(--ink-soft);margin-top:2px}
+.bar{display:inline-block;width:10px;height:10px;border:1px solid var(--c-line);margin-right:7px;vertical-align:-1px}
+
+.leg{padding:14px 16px 20px;font-size:14px}
+.leg h3{font-family:"Barlow Semi Condensed",sans-serif;font-size:17px;margin:20px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--rule)}
+.leg h3:first-child{margin-top:0}
+.leg table{width:100%;border-collapse:collapse;font-size:13.5px}
+.leg td{padding:4px 8px 4px 0;vertical-align:top;border-bottom:1px solid var(--grid)}
+.leg td.c{font-family:"Barlow Semi Condensed",sans-serif;font-weight:700;white-space:nowrap;width:1%}
+.leg td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--ink-soft)}
+.leg .search{width:100%;padding:9px 11px;border-radius:8px;border:1px solid var(--rule);background:var(--field);color:var(--ink);font:inherit}
+.leg .hits{margin-top:8px;max-height:260px;overflow:auto}
+.leg .note{color:var(--ink-soft);font-size:13px}
+
+.foot{max-width:1200px;margin:0 auto;padding:0 14px 30px;color:var(--ink-soft);font-size:12.5px}
+
+@media (max-width:560px){
+  .duty-no{font-size:32px}
+  .row{padding:9px 12px}
+  .row .t{min-width:88px;font-size:14px}
+  main{padding:12px 8px 48px}
+}
+#printview{display:none}
+@media print{
+  @page{size:A4 landscape;margin:9mm}
+  html,body{background:#fff}
+  body > *{display:none !important}
+  body > #printview{
+    display:block !important;
+    --sheet:#fff; --sheet2:#fff; --paper:#fff; --ink:#000; --ink-soft:#444;
+    --rule:#999; --grid:#e2e2e2; --grid-hour:#a8a8a8; --track:#bbb;
+    --c-train:#000; --c-va1:#0b2fbe; --c-va:#8fb6e8; --c-res:#fff; --c-line:#000;
+    --c-shunt:#c3c9cf; --c-shunt2:#fff; --c-gast:#f07d00; --c-walk:#eee; --c-vatext:#0b2fbe;
+    color:#000; font-size:10pt;
+  }
+  #printview .pv-head{display:flex;align-items:flex-end;gap:14px;border-bottom:1.5px solid #000;padding-bottom:4px;margin-bottom:2mm}
+  #printview .pv-nr{font-family:"Barlow Semi Condensed",sans-serif;font-size:26pt;font-weight:700;line-height:.9}
+  #printview .pv-facts{display:flex;flex-wrap:wrap;gap:3px 14px;flex:1}
+  #printview .pv-facts span{font-family:"Barlow Semi Condensed",sans-serif;font-size:11pt;font-weight:600;white-space:nowrap}
+  #printview .pv-facts i{display:block;font-style:normal;font-size:7pt;font-weight:400;color:#444}
+  #printview .pv-date{font-size:10pt;font-weight:600;white-space:nowrap}
+  #printview .pv-extra{font-size:9.5pt;border-left:3px solid #0b2fbe;padding:2px 0 2px 6px;margin-bottom:2mm}
+  #printview .strip{width:100%;height:auto;display:block}
+  #printview .pv-legend{display:flex;flex-wrap:wrap;gap:3px 12px;font-size:7.5pt;color:#333;margin:1mm 0 3mm;
+    border-top:.5pt solid #999;border-bottom:.5pt solid #999;padding:1.5mm 0}
+  #printview .pv-legend span{display:inline-flex;align-items:center;gap:4px}
+  #printview .pv-legend i.key{width:16px;height:9px;border:.7pt solid #000;flex:none}
+  #printview h4{font-family:"Barlow Semi Condensed",sans-serif;font-size:11pt;margin:0 0 1mm;
+    border-bottom:.5pt solid #999;padding-bottom:1px}
+  #printview .pv-tab{column-count:3;column-gap:6mm;column-rule:.3pt solid #ddd;margin:0 0 3mm;
+    font-family:"Barlow Semi Condensed",sans-serif;font-size:6.8pt;line-height:1.25}
+  #printview .tr{display:flex;gap:1.2mm;align-items:baseline;break-inside:avoid;
+    padding:.3mm 0;border-bottom:.3pt solid #e8e8e8}
+  #printview .tr.hl{background:#f2f2f2}
+  #printview .tt{width:17mm;flex:none;font-variant-numeric:tabular-nums;white-space:nowrap}
+  #printview .tc{width:1.7mm;height:1.7mm;border:.4pt solid #000;flex:none;align-self:center}
+  #printview .ta{width:15mm;flex:none;white-space:nowrap;overflow:hidden}
+  #printview .tp{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #printview .tz{width:13mm;flex:none;text-align:right;white-space:nowrap}
+  #printview .tf{width:13mm;flex:none;text-align:right;color:#555;white-space:nowrap;overflow:hidden}
+  #printview .tn{width:6mm;flex:none;text-align:right;font-weight:700}
+  #printview .pv-notes{column-count:2;column-gap:8mm;margin:0;padding-left:6mm;font-size:9pt}
+  #printview .pv-notes li{margin:0 0 1.2mm;break-inside:avoid}
+  #printview .pv-notes li::marker{font-weight:700}
+  #printview .pv-foot{margin-top:3mm;font-size:7.5pt;color:#555}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="rail" aria-hidden="true"></div>
+  <h1>Dienstplan<small id="subtitle">grafisch aus der tabellarischen Datei</small></h1>
+  <button class="btn btn-ghost" id="btnReset" hidden>Andere Datei</button>
+  <button class="btn btn-ghost" id="btnPrint" hidden>PDF</button>
+</div>
+
+<main>
+  <section id="intro" class="intro">
+    <h2>Tabellarischen Dienstplan öffnen</h2>
+    <p>Die Datei bleibt auf dem Gerät — sie wird im Browser gelesen, nichts wird hochgeladen.</p>
+    <div class="drop" id="drop">
+      <button class="btn btn-primary" id="btnPick">PDF auswählen</button>
+      <p>oder Datei hierher ziehen</p>
+    </div>
+    <input type="file" id="file" accept="application/pdf,.pdf" hidden>
+    <div class="actions">
+      <button class="btn" id="btnDemo">Beispiel 5011 ansehen</button>
+    </div>
+    <details class="paste">
+      <summary>Kein PDF? Text der Tabelle einfügen</summary>
+      <textarea id="paste" placeholder="Inhalt des tabellarischen Dienstplans hier einfügen"></textarea>
+      <button class="btn" id="btnPaste" style="margin-top:8px">Text auswerten</button>
+    </details>
+    <div id="err" class="err" hidden></div>
+  </section>
+  <section id="plan" hidden></section>
+</main>
+
+<div id="printview"></div>
+
+<div class="foot" id="foot" hidden>
+  Zeichen und Farben nach der AVG-Schichtplanlegende, Stand 25.08.2025.
+  Auf einen Balken tippen zeigt die Einzelheiten aus der Tabelle.
+</div>
+
+<script>
+/*<<PARSER*/
+/* Betriebsstellen aus der Schichtplanlegende, Seiten 3-7 */
+var BST_RAW =
+'RAH=Achern|RBB=Baden-Baden|RBBC=Bauerbach|RBBL=Baden-Baden Rebland|RBBR=Bahnbrücken|RBCG=Büchig|'+
+'RBGB=Berghausen Bf|RBGBP=Berghausen Pfinzbrücke|RBGBS=Berghausen Am Stadion|RBGB_X=Berghausen Gleis 24|'+
+'RBGP=Berghausen (Pfalz)|RBHG=Betriebshof Gerwigstraße|RBHT=Betriebshof Tullastraße|RBHW=Betriebshof West|'+
+'RBIE=Bietigheim (Baden)|RBIS=Bischweier|RBLH=Bellheim Bf|RBLN=Bellheim Am Mühlbuckel|RBMT=Bruchsal Am Mantel|'+
+'RBPK=Bad Rappenau Kurpark|RBR=Bruchsal Bf|RBRA=Bad Rappenau Bf|RBRC=Bruchsal Stegwiesen|RBRD=Bruchsal Schloßgarten|'+
+'RBRE=Bruchsal Tunnelstraße|RBRF=Bruchsal Schlachthof|RBRH=Bruchhausen|RBRP=Bruchsal Sportzentrum|'+
+'RBRZ=Bruchsal Gewerbl. Bildungszentrum|RBS=Bad Schönborn Süd|RBSK=Bad Schönborn-Kronau|RBSN=Baiersbronn Bf|'+
+'RBSS=Baiersbronn Schule|RBST=Babstadt|RBT=Bretten Bf|RBTD=Diedelsheim|RBTI=Bretten-Ruit|RBTK=Bretten Kupferhälde|'+
+'RBTM=Bretten Stadtmitte|RBTN=Bretten Rechenberg|RBTR=Rinklingen|RBTS=Bretten Schulzentrum|RBTW=Bretten Wannenweg|'+
+'RBUE=Bühl (Baden)|RBUS=Busenbach|RBWF=Bad Wimpfen Bf|RBWH=Bad Wimpfen-Hohenstadt|RDAH=Dammerstock|'+
+'RDAI=Gaggenau Mercedes-Benz-Werk|RDBG=Dürrenbüchig|RDRM=Durmersheim Bf|RDUN=Durmersheim Nord|REG=Eggenstein Bf|'+
+'REGS=Eggenstein Süd|REGSN=Eggenstein Schweriner Str|REGSW=Eggenstein Spöcker Weg|RLEV=Viermorgen|REP=Eppingen Bf|'+
+'REPW=Eppingen West|RETE=Ettlingen Erbprinz/Schloss|RETF=Ettlingen Albgaubad|RETL=Ettlingen West|'+
+'RETN=Ettlingen Neuwiesenreben|RETS=Ettlingen Spinnerei|RETT=Ettlingen Stadt|RETW=Ettlingen Wasen|RETZ=Etzenrot|'+
+'RFCH=Forbach (Schwarzwald)|RFIW=Fischweier|RFL=Flehingen Bf|RFM=Forchheim (bei Karlsruhe)|RKIT=KIT Campus Nord|'+
+'RFRT=Friedrichstal|RFS=Frauenalb-Schielberg|RGBA=Gausbach|RGE=Germersheim Bf|RGEB=Germersheim Bundeswehr-Depot|'+
+'RGEM=Germersheim Mitte/Rhein|RGES=Germersheim Süd/Nolte|RGG=Gaggenau Bf|RGM=Grombach|RGN=Graben-Neudorf Bf|'+
+'RGNN=Graben-Neudorf Nord|RGO=Gondelsheim|RGOE=Gölshausen Bf|RGOI=Gölshausen Industrie|RGOM=Gochsheim (Baden)|'+
+'RGOMA=Gochsheim Anschluss|RGOS=Gondelsheim Schloßstadion|RGS=Gernsbach Bf|RGSD=Gernsbach Mitte|'+
+'RGUN=Gundelsheim/Neckar|RGZ=Grötzingen Bf|RGZA=Grötzingen Bf AVG|RGZK=Grötzingen Krappmühlenweg|'+
+'RGZO=Grötzingen Oberausstraße (S4)|RGZOH=Grötzingen Oberausstraße (S5)|RHAS=Haßmersheim|RHBA=Heselbach|'+
+'RHEB=Haueneberstein|RHI=Heidelsheim Bf|RHIO=Heidelsheim Nord|RHLB=Bad Herrenalb Bf|RHLT=Hilpertsau|'+
+'RHN=Heiligenstein|RHOR=Hörden|RHOS=Hochstetten|RHOSA=Hochstetten Altenheim|RHOSG=Hochstetten Grenzstr.|'+
+'RHSM=Helmsheim|RHTT=Huttenheim|RHUB=Huzenbach|RHUM=Berghausen Hummelberg|RITB=Ittersbach Bf|'+
+'RITBR=Ittersbach Rathaus|RITI=Ittersbach Industrie|RITL=Ittlingen|RJLB=Jöhlingen Bf|RJLW=Jöhlingen West|'+
+'RJO=Jockgrim Bf|RK=Karlsruhe Hbf|RK A=Karlsruhe Abzw. DB/AVG|RKAA=Karlsruhe Arbeitsagentur|'+
+'RKAB=Karlsruhe Albtalbahnhof|RKABE=Karlsruhe August-Bebel-Str|RKAG=Karlsruhe Augartenstraße|'+
+'RKAP=Karlsruhe Poststraße|RKBA=Kleinsteinbach|RKBPS=Karlsruhe Kronenplatz (Fritz-Erler-Straße)|'+
+'RKBPU=Karlsruhe Kronenplatz (U)|RKBKA=Karlsruhe Duale Hochschule|RKBR=Karlsruhe Barbarossaplatz|'+
+'RKBV=Kirschbaumwasen|RKDG=Karlsruhe Gottesauer Platz/BGV|RKDOR=Daxlanden Dornröschenweg|RKDS=Dammerstock|'+
+'RKDTB=Karlsruhe Durlacher Tor/KIT-Campus Süd (Bernhardusplatz)|RKDTD=Karlsruhe Durlacher Tor/KIT-Campus Süd (Durlacher Allee)|'+
+'RKDTU=Karlsruhe Durlacher Tor/KIT-Campus Süd (U)|RKDU=Karlsruhe-Durlach Bf|RKDUA=Karlsruhe-Durlach Bf AVG|'+
+'RKDUH=Karlsruhe Hubstraße|RKDUU=Karlsruhe Untermühlstraße|RKDW=Karlsruhe Weinweg|RKECK=Karlsruhe Eckenerstraße|'+
+'RKEB=Karlsruhe Ebertstraße|RKEF=Karlsruhe Entenfang|RKEFN=Karlsruhe Entenfang Nord|RKEFO=Karlsruhe Entenfang (Alb)|'+
+'RKEG=Karlsruhe Eggensteiner Straße|RKEH=Karlsruhe Händelstraße|RKEP=Karlsruhe Philippstraße|'+
+'RKEPH=Karlsruhe Europahalle (Wendeschleife)|RKF=Karlsdorf|RKHB=Haus Bethlehem|RKHDH=Karlsruhe Heidehof|'+
+'RKHN=Karlsruhe Rheinhafen|RKHU=Karlsruhe Hübschstraße|RKIH=Karlsruhe Herweghstraße|RKIN=Karlsruhe-Knielingen|'+
+'RKIS=Karlsruhe Siemens|RKKAK=Karlsruhe Kunstakademie/Hochschule|RKKAR=Karlsruhe Karlstor/Bundesgerichtshof (Karlstraße)|'+
+'RKKDS=Daxlanden Karl-Delisle-Straße|RKKK=Karlsruhe Kühler Krug|RKKN=Karlsruhe Knielinger Allee|'+
+'RKKP=Karlsruhe Kolpingplatz|RKKS=Karlsruhe Kurt-Schumacher-Str|RKKT=Karlsruhe Karlstor/Bundesgerichtshof (Kriegsstraße)|'+
+'RKKZ=Karlsruhe Konzerthaus|RKLB=Klosterreichenbach|RKLA=Karlsruhe Landesbausparkasse|RKLE=Karlsruhe Lessingstraße|'+
+'RKLIH=Karlsruhe Lilienthalstraße|RKMA=Karlsruhe Marktplatz|RKMAA=Karlsruhe Marktplatz Abzw.|'+
+'RKMAP=Karlsruhe Marktplatz (Pyramide U)|RKMAU=Karlsruhe Marktplatz (Kaiserstraße U)|'+
+'RKME=Karlsruhe Ettlinger Tor/Staatstheater (U)|RKMEK=Karlsruhe Ettlinger Tor/Staatstheater (Kriegsstraße)|'+
+'RKMF=Karlsruhe Mühlburger Feld|RKMG=Karlsruhe-Mühlburg|RKMK=Karlsruhe Kongresszentrum (U)|'+
+'RKMT=Karlsruhe Mühlburger Tor|RKMTG=Karlsruhe Mühlburger Tor (Grashofstraße)|RKMTY=Karlsruhe Mathystraße (Karlstraße)|'+
+'RKMW=Karlsruhe Mühlburg West|RKMY=Karlsruhe Yorckstraße|RKMYW=Karlsruhe Mathystraße (Mathystraße)|'+
+'RKNEA=Adolf-Ehrmann-Bad|RKNEB=Bärenweg|RKNEW=Welschneureuther Str|RKNEK=Neureut Kirchfeld|'+
+'RKNRH=Karlsruhe Neureut-Heide|RKOX=Karlsruhe Ostendstraße|RKOS=Karlsruhe Otto-Sachs-Straße|'+
+'RKPH=Karlsruhe Philipp-Reis-Straße|RKRHS=Karlsruhe Rheinhafenstraße|RKRSS=Daxlanden Hammäcker|'+
+'RKRT=Karlsruhe Rüppurrer Tor (Rüppurrer Straße)|RKRTK=Karlsruhe Rüppurrer Tor (Kriegsstraße)|'+
+'RKSEP=Karlsruhe Europaplatz (Kaiserstraße)|RKSEK=Karlsruhe Europaplatz (Karlstraße)|RKSEU=Karlsruhe Europaplatz (U)|'+
+'RKSEW=Karlsruhe Kaiserstraße West|RKSG=Karlsruhe Schloss Gottesaue|RKSK=Karlsruhe Städt. Klinikum/Moltkestr|'+
+'RKSL=Karlsruhe Lameyplatz|RKSR=Knielingen Rheinbergstraße|RKSRW=Knielingen Rheinbergstr. Wendeschleife|'+
+'RKSS=Karlsruhe Starckstraße|RKSYG=Karlsruhe Synagoge|RKTI=Karlsruhe Tivoli|RKTU=Karlsruhe Tullastraße (Durlacher Allee)|'+
+'RKTUT=Karlsruhe Tullastraße (Tullastraße)|RKTMS=Daxlanden Thomas-Mann-Straße|RKU=Kuppenheim|'+
+'RKU B=Kuppenheim Awanst. Badenwerk|RKUL=Bad Herrenalb Kullenmühle|RKV=Karlsruhe Hbf Vorplatz|'+
+'RKVWO=Karlsruhe Volkswohnung|RKW=Karlsruhe West|RKWPL=Karlsruhe Weinbrennerplatz (LBS)|'+
+'RKWBO=Karlsruhe Weinbrennerplatz Ost|RKWE=Karlsruhe Werderstraße|RKWN=Karlsruhe Welfenstraße|'+
+'RKWO=Karlsruhe Wolfartsweierer Straße|RKWPK=Karlsruhe Weinbrennerplatz (Kriegstraße)|'+
+'RKWPS=Karlsruhe Weinbrennerplatz (Schillerstraße)|RKWYY=Karlsruhe Weinbrennerplatz (Bypass)|RKZK=Karlsruhe ZKM|'+
+'RLBB=Langensteinbach St. Barbara|RLBD=Langenbrand|RLEOF=Leopoldshafen Frankfurter Str|RLEO=Leopoldshafen Leopoldstr.|'+
+'RLF=Lingenfeld|RLINF=Linkenheim Friedrichstr.|RLING=Linkenheim Rathaus|RLINS=Linkenheim Süd|'+
+'RLINZ=Linkenheim Schulzentrum|RLSB=Langensteinbach Bf|RLSBS=Langensteinbach Schießhüttenäcker|'+
+'RMAL=Maximiliansau Eisenbahnstraße|RMAW=Maximiliansau West|RMAX=Maxau|RMO=Mosbach Bf|RMOW=Mosbach West|'+
+'RMS=Malsch Bf|RMSU=Malsch Süd|RMU=Muggensturm Bf|RMU B=Muggensturm Badesee|RMX=Marxzell|RMZH=Münzesheim Bf|'+
+'RMZN=Menzingen (Baden)|RMZO=Münzesheim Ost|RNEZ=Neckarzimmern|RNZ=Mosbach-Neckarelz|ROBE=Oberderdingen-Flehingen|'+
+'RODH=Odenheim Bf|RODW=Odenheim West|ROH=Ötigheim|ROOE=Oberöwisheim|ROT=Obertsrot|ROTU=Ottenau|ROU=Offenau|'+
+'ROW=Ottersweier|RPB=Philippsburg|RRA=Rastatt Bf|RRAB=Rastatt Beinle|RRBA=Reichenbach Bf|RRBK=Reichenbach Kurpark|'+
+'RRHH=Rheinsheim|RRIH=Richen|RRIN=Reihen|RRMZ=Raumünzach|RRO=Bad Rotenfels Bf/Rotherma|RROG=Bad Rotenfels Schloss|'+
+'RROI=Bad Rotenfels Awanst. Industriestammgl|RROW=Bad Rotenfels Weinbrennerstr|RRT=Röt|RRUB=KA-Rüppurr Battstraße|'+
+'RRUO=KA-Rüppurr Ostendorfplatz|RSRP=KA-Rüppurr Schloss Rüppurr|RRUT=KA-Rüppurr Tulpenstraße|RRZA=Rheinzabern Bf|'+
+'RRZD=Rülzheim Freizeitzentrum|RRZH=Rülzheim Bf|RRZM=Rheinzabern Rappengasse|RRZU=Rheinzabern Alte Römerstraße|'+
+'RSF=Stettfeld (Baden)|RSFD=Sulzfeld (Baden)|RSL=Söllingen Bf|RSLA=Söllingen Kapellenstraße|'+
+'RSLR=Söllingen Reetzstraße|RSLRA=Söllingen Reetzstraße (AVG)|RSLV=Söllingen Bf AVG|RSM=Sinsheim Hbf|'+
+'RSMM=Sinsheim Museum/Arena|RSOH=Sondernheim|RSOM=Schönmünzach|RSP=Speyer Hbf|RSPG=Spielberg|RSS=Steinsfurt|'+
+'RSW=Schwarzenberg|RSZM=Sinzheim (bei Bühl) Bf|RSZN=Sinzheim (bei Bühl) Nord|RUO=Ubstadt Ort|RUOE=Unteröwisheim Bf|'+
+'RUOEL=Unteröwisheim Martin-Luther-Str.|RUOS=Ubstadt Salzbrunnenstr|RUOU=Ubstadt Uhlandstraße|RURB=Untergrombach|'+
+'RUW=Ubstadt-Weiher|RWGT=Weingarten (Baden)|RWRT=Wörth (Rhein) Bf|RWRTA=Wörth (Rhein) Badallee|'+
+'RWRTB=Wörth (Rhein) Bienwaldhalle|RWRTK=Wörth (Rhein) Badepark|RWRTL=Wörth (Rhein) Alte Bahnmeisterei|'+
+'RWRTP=Wörth (Rhein) Bürgerpark|RWRTR=Wörth (Rhein) Rathaus|RWRZ=Wörth (Rhein) Zügelstraße|RWSA=Au im Murgtal|'+
+'RWSB=Weisenbach|RWSN=Wössingen Bf|RWSO=Wössingen Ost|RZA=Zaisenhausen|RZE=Zeutern Bf|RZEO=Zeutern Ost|'+
+'RZES=Zeutern Sportplatz|RKHTW=Karlsruhe Hirtenweg|RKDUT=Durlach Turmberg|'+
+'TAF=Affaltrach|TBCB=Böckingen Berufsschulzentrum|TBCS=Böckingen Sonnenbrunnen|TBCW=Böckingen West|'+
+'TBD=Bondorf (b. Herrenb.)|TBF=Bad Friedrichshall Hbf|TBFS=Bad Friedrichshall Salzwerk|TBIF=Bitzfeld|TBIL=Bilfingen|'+
+'TBIR=Birkenfeld (Württ)|TBIT=Bittelbronn|TBK=Bad Friedrichshall-Kochendorf|TBKA=Kochendorf Audi|'+
+'TBM=Bietigheim-Bissingen|TBME=Ellental|TBWT=Bad Wimpfen Im Tal|TBZ=Bretzfeld|TCA=Calmbach Bf|TCAS=Calmbach Süd|'+
+'TCP=Öhringen Cappel|TDS=Dornstetten|TDSA=Dornstetten Aach|TEB=Eutingen (Baden)|TEG=Ergenzingen|'+
+'TELI=Weinsberg/Ellhofen Gewerbegebiet|TELL=Ellhofen|TERS=Ersingen Bf|TERW=Ersingen West|TESU=Eschenau|'+
+'TET=Eutingen im Gäu|TETN=Eutingen Nord|TEZ=Enzberg|TFS=Freudenstadt Hbf|TFSI=Freudenstadt Industriegebiet/Schmid|'+
+'TFSS=Freudenstadt Stadt|TFSZ=Freudenstadt Schulzentrum/Panoramabad|TGEM=Gemmingen Bf|TGEW=Gemmingen West|'+
+'TGFD=Gäufelden|TGRW=Grüntal-Wittlensweiler|TH=Heilbronn Hbf|TH A=Heilbronn Finanzamt|TH B=Heilbronn Hbf/Willy-Brandt-Platz|'+
+'TH F=Heilbronn Friedensplatz|TH H=Heilbronn Harmonie (S4)|TH O=Heilbronn Harmonie (S41/S42)|'+
+'TH P=Heilbronn Neckar-Turm/K-Schu-Platz|TH R=Heilbronn Rathaus|TH T=Heilbronn Theater|TH U=Heilbronn Pfühlpark|'+
+'THBH=Horb-Heiligenfeld|THE=Herrenberg|THF=Hochdorf (bei Horb)|THHF=Horb Heiligenfeld|THOE=Höfen (Enz) Bf|'+
+'THON=Höfen (Enz) Nord|THST=Heilbronn Sülmertor|THSTI=Heilbronn Industrieplatz|THSTR=Heilbronn Hans-Rießer-Straße|'+
+'THSTS=Heilbronn Technisches Schulzentrum|TIL=Illingen|TIP=Ispringen|TKB=Königsbach (Baden)|'+
+'TKNK=Knittlingen-Kleinvillars|TLG=Leingarten Bf|TLGM=Leingarten Mitte|TLGO=Leingarten Ost|TLGW=Leingarten West|'+
+'TM=Mühlacker Bf|TMRO=Mühlacker Rösslesweg|TMW=Maulbronn West|TN=Neckarsulm Bf|TN A=Neckarsulm Bf AVG|'+
+'TN M=Neckarsulm Mitte|TN S=Neckarsulm Süd|TNE=Neuenbürg (Württ) Bf|TNEB=Neuenbürg (Württ) Freibad|'+
+'TNEE=Neuenbürg (Württ) Eyachbrücke|TNES=Neuenbürg (Württ) Süd|TNF=Niefern|TNSK=Heilbronn Kaufland|'+
+'TNSN=Neckarsulm Nord|TOE=Öhringen Hbf|TOED=Ölbronn-Dürrn|TOET=Ötisheim|TOEW=Öhringen West|TPB=Brötzingen Mitte|'+
+'TPBS=Brötzingen Sandweg|TPBW=Brötzingen Wohnlichstraße|TPH=Pforzheim Hbf|TPHD=Pforzheim Durlacher Straße|'+
+'TPHM=Pforzheim Maihälden|TRY=Rotenbach|TSA=Sachsenheim|TSEP=Scheppach|TSER=Sersheim|TSHG=Stetten am Heuchelberg|'+
+'TSPF=Schopfloch (bei Freudenstadt)|TSUE=Sülzbach Bf|TSUS=Sülzbach Schule|TSWG=Schwaigern (Württ) Bf|'+
+'TSWO=Schwaigern (Württ) Ost|TSWW=Schwaigern (Württ) West|TTPS=Heilbronn Trappensee|TV=Vaihingen (Enz)|'+
+'TWB=Bad Wildbad Bf|TWBK=Bad Wildbad Kurpark|TWBN=Bad Wildbad Nord|TWBU=Bad Wildbad Uhlandplatz|TWID=Wieslensdorf|'+
+'TWL=Wilferdingen-Singen|TWLB=Willsbach|TWR=Weinsberg Bf|TWRW=Weinsberg West';
+
+var BST = {}, BSTBYNAME = {};
+(function(){
+  BST_RAW.split('|').forEach(function(e){
+    var i = e.indexOf('='); if (i < 0) return;
+    var c = e.slice(0,i).replace(/[_\s]+/g,' ').trim().toUpperCase();
+    var n = e.slice(i+1).trim();
+    BST[c] = n;
+    BSTBYNAME[n.toLowerCase()] = c;
+  });
+})();
+function bstName(code){
+  if (!code) return '';
+  return BST[String(code).replace(/[_\s]+/g,' ').trim().toUpperCase()] || '';
+}
+
+/* Erläuterungen der technischen Vor- und Abschlussdienste */
+var VA_TEXT = {
+  V1:'Abgestelltes Fahrzeug nach EBO und BO-Strab in Betrieb nehmen',
+  V2:'Fahrzeug oder Zugverband aus einer Zwischenabstellung für eine Zugfahrt vorbereiten; Fahrzeug am Bahnsteig ohne persönliche Ablösung übernehmen',
+  V3:'Persönliche Ablösung am Zug',
+  V4:'Abgestelltes Fahrzeug nach BO-Strab in Betrieb nehmen',
+  VF:'Fahrzeug von einem Zug abhängen und für eine Zugfahrt bereitstellen (Flügelung)',
+  VP:'Fahrzeug nach kurzzeitigem Verlassen übernehmen',
+  A1:'Fahrzeug abstellen',
+  A2:'Fahrzeug aus einer Zugfahrt zwischenabstellen (Wiedereinsatz am selben Betriebstag); Fahrzeug am Bahnsteig ohne persönliche Ablösung stehen lassen',
+  A3:'Persönliche Ablösung am Zug',
+  A4:'Fahrzeug im RBHW/RBHG abstellen',
+  AF:'Fahrzeug nach einer Zugfahrt an einen anderen Zug anhängen',
+  AP:'Fahrzeug zum kurzzeitigen Verlassen stehen lassen'
+};
+
+/* Tätigkeiten: cat = Zeichen der Legende, major = eigene Leistung mit Zugnummer */
+var ACT = {
+  'Zugfahrt'     :{cat:'train', major:1, label:'Zugfahrt'},
+  'Leer'         :{cat:'shunt', major:1, label:'Leerzug'},
+  'Leerfahrt'    :{cat:'shunt', major:1, label:'Leerzug'},
+  'Lz'           :{cat:'shunt', major:1, label:'Leerzug'},
+  'Lt'           :{cat:'shunt', major:1, label:'Leertriebwagen'},
+  'MitFt'        :{cat:'gast',  major:1, label:'Gastfahrt (Mitfahrt)'},
+  'Mitfahrt'     :{cat:'gast',  major:1, label:'Gastfahrt (Mitfahrt)'},
+  'Gf'           :{cat:'gast',  major:1, label:'Gastfahrt'},
+  'Taxi'         :{cat:'gast',  major:1, label:'Gastfahrt mit Taxi'},
+  'Rangierfahrt' :{cat:'shunt', major:0, label:'Rangierfahrt'},
+  'Rf'           :{cat:'shunt', major:0, label:'Rangierfahrt'},
+  'Wenden'       :{cat:'res',   major:0, label:'Wenden'},
+  'Wende'        :{cat:'res',   major:0, label:'Wenden'},
+  'RES'          :{cat:'res',   major:0, label:'Reserve'},
+  'Res'          :{cat:'res',   major:0, label:'Reserve'},
+  'UNBPAU'       :{cat:'break', major:0, label:'Unbezahlte Pause'},
+  'BEZPAU'       :{cat:'break', major:0, label:'Bezahlte Pause'},
+  'PAUSE'        :{cat:'break', major:0, label:'Pause'},
+  'Pause'        :{cat:'break', major:0, label:'Pause'},
+  'VB'           :{cat:'res',   major:0, label:'Vorbereitung am Dienstbeginn'},
+  'AB'           :{cat:'res',   major:0, label:'Nachbereitung am Dienstende'},
+  'Aufrüst'      :{cat:'va',    major:0, label:'Aufrüsten', grade:'V'},
+  'Aufrüsten'    :{cat:'va',    major:0, label:'Aufrüsten', grade:'V'},
+  'Abrüst'       :{cat:'va',    major:0, label:'Abrüsten', grade:'A'},
+  'Abrüsten'     :{cat:'va',    major:0, label:'Abrüsten', grade:'A'},
+  'Fußweg'       :{cat:'walk',  major:0, label:'Fußweg'},
+  'Fussweg'      :{cat:'walk',  major:0, label:'Fußweg'},
+  'Dienstgang'   :{cat:'walk',  major:0, label:'Dienstgang'},
+  'Übernahme'    :{cat:'mark',  major:0, label:'Übernahme'},
+  'Übergabe'     :{cat:'mark',  major:0, label:'Übergabe'},
+  'Abgabe'       :{cat:'mark',  major:0, label:'Abgabe'},
+  'Ablösung'     :{cat:'mark',  major:0, label:'Ablösung'}
+};
+
+function isAct(t){ return !!ACT[t] || /^[VA][0-9BFP]$/.test(t); }
+
+function actInfo(code){
+  if (ACT[code]) return ACT[code];
+  if (/^V[0-9BFP]$/.test(code)) return {cat:'va', major:0, grade:'V', label:'Vorbereitungsdienst ' + code};
+  if (/^A[0-9BFP]$/.test(code)) return {cat:'va', major:0, grade:'A', label:'Abschlussdienst ' + code};
+  return {cat:'other', major:0, label:code || 'Tätigkeit'};
+}
+
+function toMin(t){ var m=/(\d{1,2}):(\d{2})/.exec(t); return m ? (+m[1])*60 + (+m[2]) : 0; }
+function hhmm(m){ m=((m%1440)+1440)%1440; return pad2(Math.floor(m/60))+':'+pad2(m%60); }
+function dur(m){ return pad2(Math.floor(m/60))+':'+pad2(m%60); }
+function pad2(n){ n=Math.floor(n); return (n<10?'0':'')+n; }
+
+function cleanText(raw){
+  var t = String(raw).replace(/\u00a0/g,' ');
+  t = t.replace(/https?:\/\/\S+/g,' ');
+  t = t.replace(/Seite\s+\d+\s+von\s+\d+/gi,' ');
+  t = t.replace(/\b\d{2}[-.]\d{2}[-.]\d{4},?\s*\d{1,2}:\d{2}\b/g,' ');
+  t = t.replace(/\u2192|\u27f6|\u279c|-->|->|=>/g,' \u2192 ');
+  t = t.replace(/\s+/g,' ');
+  return ' ' + t.trim() + ' ';
+}
+
+function findDate(text){
+  var m = /(Mo|Di|Mi|Do|Fr|Sa|So)[a-z]*\.?,?\s*(\d{2})\.(\d{2})\.(\d{4})/.exec(text);
+  if (!m) return null;
+  return {label:m[1]+', '+m[2]+'.'+m[3]+'.'+m[4], d:+m[2], mo:+m[3], y:+m[4]};
+}
+
+function splitDuties(text){
+  var hits=[], m;
+  var re = /(?:^|\s)([A-Za-z0-9][A-Za-z0-9_\-]{1,9})\s+Betriebshof\s+([^\u2192:]{0,40}?)\s*Beginn\s*(\d{1,2}:\d{2})\+?\s*Ende\s*(\d{1,2}:\d{2})\+?\s*Arbeitszeit\s*(\d{1,2}:\d{2})\+?(?:\s*Zusatz\[([^\]]*)\])?/g;
+  while ((m = re.exec(text))) hits.push({idx:m.index, len:m[0].length, nr:m[1], hof:m[2], beginn:m[3], ende:m[4], arbeit:m[5], extra:m[6]});
+  if (!hits.length){
+    var re2 = /(?:^|\s)([A-Za-z0-9][A-Za-z0-9_\-]{1,9})\s+Beginn\s*(\d{1,2}:\d{2})\+?\s*Ende\s*(\d{1,2}:\d{2})\+?\s*Arbeitszeit\s*(\d{1,2}:\d{2})\+?/g;
+    while ((m = re2.exec(text))) hits.push({idx:m.index, len:m[0].length, nr:m[1], hof:'', beginn:m[2], ende:m[3], arbeit:m[4]});
+  }
+  return hits.map(function(h,i){
+    h.body = text.slice(h.idx + h.len, i+1 < hits.length ? hits[i+1].idx : text.length);
+    return h;
+  });
+}
+
+function splitRecords(body){
+  var times = [], re = /\b\d{1,2}:\d{2}\+?/g, m;
+  while ((m = re.exec(body))) times.push({s:m[0], i:m.index});
+  var recs = [];
+  for (var i=0;i<times.length;i++){
+    var t = times[i], endT = null, pos = t.i + t.s.length, nxt = times[i+1];
+    if (nxt && body.slice(pos, nxt.i).trim() === ''){ endT = nxt.s; pos = nxt.i + nxt.s.length; i++; }
+    var stop = times[i+1] ? times[i+1].i : body.length;
+    recs.push({start:t.s, end:endT, text:body.slice(pos, stop).trim()});
+  }
+  return recs;
+}
+
+function placeCode(place){
+  var parts = place.split('/').map(function(s){return s.trim();}).filter(Boolean), i, m;
+  for (i=1;i<parts.length;i++){
+    m = /^([A-Z][A-Z0-9]*(?: [A-Z0-9]{1,3})?)\s*#/.exec(parts[i]);
+    if (m) return m[1].trim();
+  }
+  for (i=1;i<parts.length;i++){
+    m = /^([A-Z]{2,6})[0-9.]*$/.exec(parts[i]);
+    if (m) return m[1];
+  }
+  return null;
+}
+function placeName(place){ return place.split('/')[0].trim(); }
+function normName(n){ return n.split('_')[0].replace(/\s+/g,' ').trim(); }
+
+function parseRecord(r){
+  var txt = ' ' + r.text + ' ';
+  var zug=null, zugAux=false, zusi=null, fzg=null, ref=null, m;
+
+  m = /Zugnummer\s*(\()?\s*([0-9]{2,7}(?:\s*,\s*[0-9]{2,7})*)\s*\)?/.exec(txt);
+  if (m){ zug = m[2].replace(/\s*,\s*/g, ', '); zugAux = !!m[1]; txt = txt.replace(m[0],' '); }
+  m = /ZUSI\s*([0-9]+)\s*\/\s*([0-9]+)/.exec(txt);
+  if (m){ zusi = {pos:+m[1], von:+m[2]}; txt = txt.replace(m[0],' '); }
+  m = /Fahrzeugnummer\s*\(([^)]*)\)/.exec(txt) || /Fahrzeugnummer\s*([0-9][0-9,\s]*)/.exec(txt);
+  if (m){ fzg = m[1].replace(/\s+/g,' ').trim(); txt = txt.replace(m[0],' '); }
+  m = /(Von|An|Zu)\s+Dienst\s*([A-Za-z0-9_\-]+)/.exec(txt);
+  if (m){ ref = {dir:m[1], nr:m[2]}; txt = txt.replace(m[0],' '); }
+  var anm = [];
+  txt = txt.replace(/Anm#(\d+)/g, function(mm, k){ anm.push(+k); return ' '; });
+
+  txt = txt.replace(/\s+/g,' ').trim();
+
+  var arrow = txt.indexOf('\u2192'), left, right;
+  if (arrow >= 0){ left = txt.slice(0,arrow).trim(); right = txt.slice(arrow+1).trim(); }
+  else { left = txt; right = ''; }
+
+  var toks = left.split(' ').filter(Boolean), k = -1, j;
+  for (j=0;j<toks.length;j++){ if (isAct(toks[j])){ k = j; break; } }
+  if (k < 0) k = 0;
+  var code = toks[k] || '';
+  var fromRaw = toks.slice(0,k).concat(toks.slice(k+1)).join(' ').trim();
+  var toRaw = right || fromRaw;
+
+  return {
+    code: code,
+    from: {raw:fromRaw, name:placeName(fromRaw), code:placeCode(fromRaw)},
+    to:   {raw:toRaw,   name:placeName(toRaw),   code:placeCode(toRaw)},
+    zug: zug, zugAux: zugAux, zusi: zusi, fzg: fzg, ref: ref, anm: anm
+  };
+}
+
+function resolvePlaces(items){
+  var dict = {};
+  items.forEach(function(it){
+    [it.from, it.to].forEach(function(p){ if (p.code && p.name) dict[normName(p.name)] = p.code; });
+  });
+  items.forEach(function(it){
+    [it.from, it.to].forEach(function(p){
+      if (!p.code && p.name){
+        p.code = dict[normName(p.name)] || BSTBYNAME[normName(p.name).toLowerCase()] || null;
+      }
+      p.full = bstName(p.code) || p.name;
+    });
+  });
+}
+
+function buildDuty(h){
+  var noteTexts = [];
+  var body = h.body.replace(/Anm\[([^\]]*)\]/g, function(m, t){
+    noteTexts.push(t.trim()); return ' Anm#' + (noteTexts.length - 1) + ' ';
+  });
+  var recs = splitRecords(body);
+  var items = [], off = 0, prev = -1;
+
+  recs.forEach(function(r){
+    var p = parseRecord(r);
+    var s = toMin(r.start) + off;
+    if (s < prev){ off += 1440; s += 1440; }
+    prev = s;
+    var e = r.end === null ? s : toMin(r.end) + off;
+    if (e < s) e += 1440;
+    var info = actInfo(p.code);
+    items.push({
+      start:s, end:e, code:p.code, cat:info.cat, major:!!info.major,
+      grade:info.grade || (/^V/.test(p.code) ? 'V' : (/^A/.test(p.code) ? 'A' : null)),
+      va1: p.code === 'V1' || p.code === 'A1',
+      label:info.label, expl: VA_TEXT[p.code] || '',
+      from:p.from, to:p.to, zug:p.zug, zugAux:p.zugAux, zusi:p.zusi, fzg:p.fzg, ref:p.ref,
+      notes:(p.anm || []).map(function(k){ return noteTexts[k]; }).filter(Boolean)
+    });
+  });
+
+  resolvePlaces(items);
+
+  var b = toMin(h.beginn), e = toMin(h.ende);
+  if (e < b) e += 1440;
+  if (items.length){
+    b = Math.min(b, items[0].start);
+    e = Math.max(e, items[items.length-1].end);
+  }
+
+  var notes = [];
+  items.forEach(function(it){
+    it.noteNums = [];
+    (it.notes || []).forEach(function(txt){
+      var mm = /^(\d{1,2}:\d{2})/.exec(txt), mn;
+      if (mm){
+        mn = toMin(mm[1]) + Math.floor(it.start / 1440) * 1440;
+        if (mn < it.start - 720) mn += 1440;
+        if (mn > it.start + 720) mn -= 1440;
+      } else mn = it.start;
+      notes.push({n:notes.length + 1, min:mn, text:txt});
+      it.noteNums.push(notes.length);
+    });
+  });
+
+  var breaks = items.filter(function(i){ return i.cat === 'break'; });
+  var driveMin = 0;
+  items.forEach(function(i){ if (i.cat === 'train' || (i.cat === 'shunt' && i.major)) driveMin += (i.end - i.start); });
+
+  var extra = [];
+  (h.extra || '').split(';').forEach(function(e){
+    var i = e.indexOf('='); if (i < 1) return;
+    var k = e.slice(0,i).trim(), v = e.slice(i+1).trim();
+    if (v && !extra.some(function(x){ return x.v === v; })) extra.push({k:k, v:v});
+  });
+
+  return {
+    nr:h.nr, hof:(h.hof||'').trim(), beginn:h.beginn, ende:h.ende, arbeit:h.arbeit, extra:extra,
+    startMin:b, endMin:e, t0:Math.floor(b/60)*60, t1:Math.ceil(e/60)*60,
+    items:items, breaks:breaks, driveMin:driveMin, notes:notes, blocks:buildBlocks(items)
+  };
+}
+
+function buildBlocks(items){
+  var blocks = [];
+  items.forEach(function(it){
+    if (!it.major) return;
+    var last = blocks[blocks.length-1];
+    if (last && last.cat === it.cat && last.zug && it.zug && last.zug === it.zug && it.start - last.end <= 4){
+      last.end = it.end; last.to = it.to; last.parts.push(it);
+    } else {
+      blocks.push({cat:it.cat, zug:it.zug, zusi:it.zusi, start:it.start, end:it.end, from:it.from, to:it.to, parts:[it]});
+    }
+  });
+  return blocks;
+}
+
+function parsePlan(raw){
+  var text = cleanText(raw);
+  var date = findDate(text);
+  var hits = splitDuties(text);
+  if (!hits.length) return {duties:[], date:date};
+  var duties = hits.map(buildDuty).filter(function(d){ return d.items.length > 0; });
+  duties.forEach(function(d){ d.date = date; });
+  return {duties:duties, date:date};
+}
+
+var DEMO_TEXT = [
+'Details Mo, 21.09.2026',
+'5011 Betriebshof Betriebshof West Beginn 11:35 Ende 21:29 Arbeitszeit 09:09',
+'11:35 11:41 VB Betriebshof West \u2192 Betriebshof West',
+'11:44 11:58 V1 Betriebshof West_Abstellung \u2192 Betriebshof West_Abstellung',
+'11:58 12:00 Rangierfahrt Betriebshof West_Abstellung / RBHW#B3 / RBHW#B3.4 \u2192 Betriebshof West / RBHW#2 / RBHW#2_AUSFAHRT Zugnummer (90312) ZUSI 1/1',
+'12:00 12:10 Leer Betriebshof West / RBHW#2 / RBHW#2_AUSFAHRT \u2192 Rheinbergstr. / RKSR#1 Zugnummer 90312 ZUSI 1/1',
+'12:10 12:11 Rangierfahrt Rheinbergstr. / RKSR#1 \u2192 Rheinbergstr._Abstellung / RKSR11 / RKSR11.2 Zugnummer (90312) ZUSI 1/1',
+'12:11 12:20 Wenden Rheinbergstr._Abstellung \u2192 Rheinbergstr._Abstellung',
+'12:20 12:21 Rangierfahrt Rheinbergstr._Abstellung / RKSR11 / RKSR11.2 \u2192 Rheinbergstr. / RKSR#2 Zugnummer (84819) ZUSI 1/1',
+'12:21 12:22 AF Rheinbergstr. \u2192 Rheinbergstr.',
+'12:22 12:31 MitFt Rheinbergstr. / RKSR#2 \u2192 Entenfang / RKEF#2 Zugnummer 84819 ZUSI 1/2 Fahrzeugnummer (867)',
+'12:31 12:41 RES Entenfang \u2192 Entenfang',
+'12:41 \u00dcbernahme Entenfang Von Dienst 6007',
+'12:42 13:17 Zugfahrt Entenfang / RKEF#2 \u2192 S\u00f6llingen Bf (AVG) / RSLV#32 / RSLV#32.1 Zugnummer 84901 ZUSI 1/1 Fahrzeugnummer (915)',
+'13:17 13:22 A2 S\u00f6llingen Bf (AVG) \u2192 S\u00f6llingen Bf (AVG)',
+'13:22 14:09 RES S\u00f6llingen Bf (AVG) \u2192 S\u00f6llingen Bf (AVG)',
+'14:09 14:45 MitFt S\u00f6llingen Bf (DB) / RSL#1 \u2192 Entenfang / RKEF#1 Zugnummer 85064 ZUSI 2/2 Fahrzeugnummer (906)',
+'14:45 \u00dcbernahme Entenfang Von Dienst 5073',
+'14:46 14:54 Zugfahrt Entenfang / RKEF#1 \u2192 Rheinbergstr. / RKSR#1 Zugnummer 85064 ZUSI 1/2 Fahrzeugnummer (906)',
+'14:54 15:15 Zugfahrt Rheinbergstr. / RKSR#1 \u2192 W\u00f6rth Badepark / RWRTK#2 Zugnummer 85064 ZUSI 1/1',
+'15:15 15:23 Wenden W\u00f6rth Badepark \u2192 W\u00f6rth Badepark',
+'15:23 15:40 Zugfahrt W\u00f6rth Badepark / RWRTK#2 \u2192 Rheinbergstr. / RKSR#2 Zugnummer 84999 ZUSI 1/1',
+'15:40 15:41 Zugfahrt Rheinbergstr. / RKSR#2 \u2192 Rheinbergstr. / RKSR#2 Zugnummer 84999 ZUSI 1/1',
+'15:41 15:42 AF Rheinbergstr. / RKSR#2 \u2192 Rheinbergstr. / RKSR#2',
+'15:45 15:50 RES Rheinbergstr._Pausenbereich \u2192 Rheinbergstr._Pausenbereich',
+'15:50 16:35 UNBPAU Rheinbergstr._Pausenbereich \u2192 Rheinbergstr._Pausenbereich',
+'16:35 17:01 RES Rheinbergstr._Pausenbereich \u2192 Rheinbergstr._Pausenbereich',
+'17:02 17:07 V2 Rheinbergstr._Abstellung \u2192 Rheinbergstr._Abstellung',
+'17:07 17:08 Rangierfahrt Rheinbergstr._Abstellung / RKSR11 / RKSR11.1 \u2192 Rheinbergstr. / RKSR#2 Zugnummer (84773) ZUSI 1/1 Fahrzeugnummer (890)',
+'17:08 17:12 Aufr\u00fcst Rheinbergstr. \u2192 Rheinbergstr.',
+'17:12 17:56 Zugfahrt Rheinbergstr. / RKSR#2 \u2192 S\u00f6llingen Bf (AVG) / RSLV#31 / RSLV#31.1 Zugnummer 84773 ZUSI 1/2 Fahrzeugnummer (890, 906)',
+'17:56 18:01 Wenden S\u00f6llingen Bf (AVG) \u2192 S\u00f6llingen Bf (AVG)',
+'18:01 18:44 Zugfahrt S\u00f6llingen Bf (AVG) / RSLV#31 / RSLV#31.2 \u2192 Rheinbergstr. / RKSR#1 Zugnummer 84766 ZUSI 1/2 Fahrzeugnummer (906, 890)',
+'18:44 18:45 Rangierfahrt Rheinbergstr. / RKSR#1 \u2192 Rheinbergstr._Abstellung / RKSR11 / RKSR11.1 Zugnummer (84766) ZUSI 1/2 Fahrzeugnummer (906, 890)',
+'18:45 18:50 A2 Rheinbergstr._Abstellung \u2192 Rheinbergstr._Abstellung',
+'18:53 19:10 RES Rheinbergstr._Abstellung \u2192 Rheinbergstr._Abstellung',
+'19:10 19:11 V2 Rheinbergstr._Abstellung \u2192 Rheinbergstr._Abstellung',
+'19:11 19:12 Rangierfahrt Rheinbergstr._Abstellung / RKSR11 / RKSR11.1 \u2192 Rheinbergstr. / RKSR#2 Zugnummer (84783) ZUSI 1/1 Fahrzeugnummer (906)',
+'19:12 19:51 Zugfahrt Rheinbergstr. / RKSR#2 \u2192 Berghausen Bf / RBGB#21 Zugnummer 84783 ZUSI 1/1 Fahrzeugnummer (906)',
+'19:51 19:52 Wenden Berghausen Bf \u2192 Berghausen Bf',
+'19:52 19:53 Zugfahrt Berghausen Bf / RBGB#21 \u2192 Berghausen Bf (Gl. 24) / RBGB X#1 Zugnummer 84783 ZUSI 1/1 Fahrzeugnummer (906)',
+'19:53 20:03 Wenden Berghausen Bf_Abstellung \u2192 Berghausen Bf_Abstellung',
+'20:03 20:04 Zugfahrt Berghausen Bf (Gl. 24) / RBGB X#1 \u2192 Berghausen Bf / RBGB#22 Zugnummer 84778 ZUSI 1/1 Fahrzeugnummer (906)',
+'20:04 20:05 Wenden Berghausen Bf \u2192 Berghausen Bf',
+'20:05 20:44 Zugfahrt Berghausen Bf / RBGB#22 \u2192 Rheinbergstr. / RKSR#1 Zugnummer 84778 ZUSI 1/1 Fahrzeugnummer (906)',
+'20:44 20:45 Rangierfahrt Rheinbergstr. / RKSR#1 \u2192 Rheinbergstr._Abstellung / RKSR11 / RKSR11.2 Zugnummer (84778) ZUSI 1/1 Fahrzeugnummer (906)',
+'20:45 20:46 A2 Rheinbergstr._Abstellung \u2192 Rheinbergstr._Abstellung',
+'20:46 20:54 RES Rheinbergstr._Abstellung \u2192 Rheinbergstr._Abstellung',
+'20:54 20:55 V2 Rheinbergstr._Abstellung \u2192 Rheinbergstr._Abstellung',
+'20:55 20:56 Rangierfahrt Rheinbergstr._Abstellung / RKSR11 / RKSR11.2 \u2192 Rheinbergstr. / RKSR#2 Zugnummer (90301) ZUSI 1/2 Fahrzeugnummer (906, 916)',
+'20:56 21:06 Leer Rheinbergstr. / RKSR#2 \u2192 Betriebshof West / RBHW#1 / RBHW#1_EINFAHRT Zugnummer 90301 ZUSI 1/2 Fahrzeugnummer (906, 916)',
+'21:06 21:08 Rangierfahrt Betriebshof West / RBHW#1 / RBHW#1_EINFAHRT \u2192 Betriebshof West_Abstellung / RBHW#B2 / RBHW#B2.1 Zugnummer (90301) ZUSI 1/2 Fahrzeugnummer (906, 916)',
+'21:08 21:22 A1 Betriebshof West_Abstellung \u2192 Betriebshof West_Abstellung',
+'21:25 21:29 AB Betriebshof West \u2192 Betriebshof West'
+].join('\n');
+/*PARSER>>*/
+
+/* ===== Aus den PDF-Koordinaten die Zeilen wiederherstellen ===== */
+/* Baut aus den Textteilen des PDFs die kanonischen Zeilen, die der Parser erwartet. */
+var LEFT = 110, GAP = 8, LBL = /^(Zugnummer|ZUSI|Fahrzeugnummer|(Von|An|Zu) Dienst)$/;
+
+function toLines(pages){
+  var lines = [];
+  pages.forEach(function(items, pi){
+    var rows = [];
+    items.forEach(function(it){
+      if (!it.s) return;
+      it.s = String(it.s).replace(/[\u0000-\u001f\u007f\u00ad\u200b-\u200f\ue000-\uf8ff]/g,'').trim();
+      if (!it.s) return;
+      var r = null, i;
+      for (i=0;i<rows.length;i++) if (Math.abs(rows[i].y - it.y) <= 2){ r = rows[i]; break; }
+      if (!r){ r = {y:it.y, page:pi, items:[]}; rows.push(r); }
+      r.items.push(it);
+    });
+    rows.sort(function(a,b){ return b.y - a.y; });
+    rows.forEach(function(r){
+      r.items.sort(function(a,b){ return a.x - b.x; });
+      r.text = r.items.map(function(i){ return i.s; }).join(' ').replace(/\s+/g,' ').trim();
+      if (r.text) lines.push(r);
+    });
+  });
+  return lines;
+}
+function isJunk(t){
+  return /^https?:\/\//.test(t) || /^Seite\s+\d+\s+von\s+\d+$/.test(t) || /^Details\b/.test(t);
+}
+function groups(items, minX){
+  var g = [], cur = null;
+  items.forEach(function(it){
+    if (minX != null && it.x < minX) return;
+    if (cur && it.x - cur.end < GAP){ cur.parts.push(it.s); cur.end = it.x + (it.w||0); }
+    else { cur = {x:it.x, end:it.x + (it.w||0), parts:[it.s]}; g.push(cur); }
+  });
+  return g.map(function(c){ return {x:c.x, text:c.parts.join(' ').replace(/\s+/g,' ').trim()}; });
+}
+function splitRoute(routeLines){
+  var all = [], i;
+  routeLines.forEach(function(ln, li){ ln.forEach(function(it, ii){
+    all.push({s:it.s, x:it.x, w:it.w||0, brk: ii===0 && li>0}); }); });
+  var join = function(a){ return a.map(function(t){ return t.s; }).join(' ').replace(/\s+/g,' ').trim(); };
+  if (!all.length) return ['',''];
+  for (i=0;i<all.length;i++) if (/^[\u2192\u27f6]$/.test(all[i].s))
+    return [join(all.slice(0,i)), join(all.slice(i+1))];
+  var best = -1, bg = GAP;
+  for (i=1;i<all.length;i++){
+    if (all[i].brk) continue;
+    var g = all[i].x - (all[i-1].x + all[i-1].w);
+    if (g > bg){ bg = g; best = i; }
+  }
+  if (best < 0){ var t = join(all); return [t, t]; }
+  return [join(all.slice(0,best)), join(all.slice(best))];
+}
+
+function rebuild(pages){
+  var lines = toLines(pages), out = [], i, date = '';
+  lines.forEach(function(l){
+    var m = /(Mo|Di|Mi|Do|Fr|Sa|So)[a-z]*\.?,?\s*\d{2}\.\d{2}\.\d{4}/.exec(l.text);
+    if (!date && m) date = m[0];
+  });
+  if (date) out.push('Details ' + date);
+  lines = lines.filter(function(l){ return !isJunk(l.text); });
+
+  var rec = null, hdr = null, nrCand = '';
+
+  function flushRec(){
+    if (rec && rec.act){
+      var r = splitRoute(rec.route);
+      var s = rec.start + ' ' + (rec.end ? rec.end + ' ' : '') + rec.act + ' ' + r[0] + ' \u2192 ' + r[1];
+      rec.meta.forEach(function(m){ s += ' ' + m[0] + ' ' + m[1]; });
+      rec.anm.forEach(function(t){ s += ' Anm[' + t.replace(/[\[\]]/g,' ').replace(/\s+/g,' ').trim() + ']'; });
+      out.push(s.replace(/\s+/g,' ').trim());
+    }
+    rec = null;
+  }
+  function flushHdr(){
+    if (hdr && hdr.beginn && hdr.ende && hdr.arbeit){
+      out.push((hdr.nr || 'Dienst') + ' Betriebshof ' + (hdr.hof || '') +
+               ' Beginn ' + hdr.beginn + ' Ende ' + hdr.ende + ' Arbeitszeit ' + hdr.arbeit +
+               (hdr.extra.length ? ' Zusatz[' + hdr.extra.join('; ') + ']' : ''));
+    }
+    hdr = null;
+  }
+  function content(raw){
+    var gs = groups(raw, LEFT);
+    if (!gs.length) return;
+    var txt = gs.map(function(g){ return g.text; }).join(' ');
+    if (!rec.act){ rec.act = txt; return; }
+    var x0 = gs[0].x;
+    if (x0 >= 145 && /^\d{1,2}:\d{2}\s*[-\u2013]\s/.test(txt)){
+      rec.anm.push(txt); rec.inAnm = true; return;
+    }
+    if (rec.inAnm){ rec.anm[rec.anm.length-1] += ' ' + txt; return; }
+    if (gs.every(function(g){ return LBL.test(g.text); })){ rec.pending = gs; return; }
+    if (rec.pending){
+      rec.pending.forEach(function(lab, k){ if (gs[k]) rec.meta.push([lab.text, gs[k].text]); });
+      rec.pending = null; return;
+    }
+    rec.route.push(raw.filter(function(it){ return it.x >= LEFT; }));
+  }
+
+  for (i=0;i<lines.length;i++){
+    var ln = lines[i];
+    var left = ln.items.filter(function(it){ return it.x < LEFT; });
+    var right = ln.items.filter(function(it){ return it.x >= LEFT; });
+    var t = (left.length === 1 && /^\d{1,2}:\d{2}\+?$/.test(left[0].s)) ? left[0].s : null;
+
+    if (t){
+      var nx = lines[i+1];
+      var isStart = !!(nx && nx.page === ln.page && (ln.y - nx.y) <= 22 && nx.items[0].x >= LEFT);
+      if (isStart){
+        flushRec(); flushHdr();
+        rec = {start:t, end:null, act:'', route:[], meta:[], pending:null, anm:[], inAnm:false};
+        content(right);
+      } else if (rec){
+        rec.end = t; content(right); flushRec();
+      }
+      continue;
+    }
+    if (rec){ content(right); continue; }
+
+    var gs = groups(ln.items, null);
+    var isHdr = gs.some(function(g){ return /^(Betriebshof|Beginn|Ende|Arbeitszeit)$/.test(g.text); })
+      || (hdr && gs.length && gs.every(function(g){
+           return /^(Dienst|Dienstart|Kommentar|Hinweis|Info|[A-Za-z\u00c4\u00d6\u00dc\u00e4\u00f6\u00fc\u00df]*[Bb]emerkung(?:en)?)$/.test(g.text); }));
+    if (isHdr){
+      var vs = lines[i+1] ? groups(lines[i+1].items, null) : [];
+      if (!hdr) hdr = {nr:nrCand, extra:[]};
+      gs.forEach(function(lab, k){
+        if (!vs[k]) return;
+        var v = vs[k].text;
+        if (lab.text === 'Betriebshof') hdr.hof = v;
+        else if (lab.text === 'Beginn') hdr.beginn = v;
+        else if (lab.text === 'Ende') hdr.ende = v;
+        else if (lab.text === 'Arbeitszeit') hdr.arbeit = v;
+        else hdr.extra.push(lab.text + '=' + v.replace(/[;\[\]]/g,' '));
+      });
+      nrCand = ''; i++;
+      continue;
+    }
+    if (/^[A-Za-z0-9][\w\-]{1,9}$/.test(ln.text) && !/^\d{1,2}:\d{2}\+?$/.test(ln.text)) nrCand = ln.text;
+  }
+  flushRec(); flushHdr();
+  return out.join('\n');
+}
+
+/* ===================== Zeichnen ===================== */
+var PAD = {l:12, r:12};
+var Y = {rulerTop:13, gridTop:19, num:34, stAb:50, barTop:56, barH:26, zs:[87,90,93], stAn:105, t:[119,131,143], v:160, a:172, anm:188, gridBot:194, rulerBot:206, h:212};
+var CENTER = Y.barTop + Y.barH/2;
+var CLS = {train:'c-train', shunt:'c-shunt', gast:'c-gast', res:'c-res', va:'c-va', break:'c-res', walk:'c-walk', other:'c-res'};
+
+function esc(s){
+  return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function tw(s, size){ return String(s).length * (size || 9.5) * 0.52; }
+function zsWord(n){ return n === 3 ? 'Langzug (3 GT)' : n === 2 ? 'Vollzug (2 GT)' : 'Kurzzug (1 GT)'; }
+
+function strip(duty, a, len, ppm, width, nowMin){
+  var b = a + len, o = [];
+  var X = function(t){ return PAD.l + (t - a) * ppm; };
+  var cx = function(t){ return X(Math.max(a, Math.min(b, t))); };
+
+  o.push('<svg class="strip" viewBox="0 0 '+width+' '+Y.h+'" width="'+width+'" height="'+Y.h+'" preserveAspectRatio="xMinYMin meet">');
+
+  var first = Math.ceil(a/60)*60;
+  for (var t = first; t <= b + 0.001; t += 60){
+    var x = X(t), isDay = (((t%1440)+1440)%1440) === 0;
+    o.push('<line class="'+(isDay?'gl-day':'gl-hour')+'" x1="'+x.toFixed(1)+'" y1="'+Y.gridTop+'" x2="'+x.toFixed(1)+'" y2="'+Y.gridBot+'"/>');
+    var hh = pad2(Math.floor((((t%1440)+1440)%1440)/60));
+    o.push('<text class="ruler'+(isDay?' ruler-day':'')+'" x="'+x.toFixed(1)+'" y="'+Y.rulerTop+'" text-anchor="middle">'+hh+'</text>');
+    o.push('<text class="ruler'+(isDay?' ruler-day':'')+'" x="'+x.toFixed(1)+'" y="'+Y.rulerBot+'" text-anchor="middle">'+hh+'</text>');
+    if (t + 30 <= b){
+      var xh = X(t+30);
+      o.push('<line class="gl-half" x1="'+xh.toFixed(1)+'" y1="'+Y.gridTop+'" x2="'+xh.toFixed(1)+'" y2="'+Y.gridBot+'"/>');
+    }
+  }
+
+  var ds = Math.max(a, duty.startMin), de = Math.min(b, duty.endMin);
+  if (de > ds) o.push('<rect class="track" x="'+X(ds).toFixed(1)+'" y="'+(CENTER-1)+'" width="'+Math.max(1,(de-ds)*ppm).toFixed(1)+'" height="2"/>');
+
+  duty.items.forEach(function(it, idx){
+    if (it.end < a || it.start > b) return;
+    var x1 = cx(it.start), x2 = cx(it.end), w = Math.max(2.2, x2 - x1);
+    o.push('<g data-i="'+idx+'">');
+    if (it.cat === 'mark'){
+      o.push('<path class="mark seg" d="M '+x1.toFixed(1)+' '+(CENTER-14)+' l 5 14 l -5 14 l -5 -14 Z"/>');
+      o.push('<rect class="hit" x="'+(x1-7).toFixed(1)+'" y="'+(CENTER-16)+'" width="14" height="32"/>');
+      o.push('</g>'); return;
+    }
+    var cls = it.cat === 'va' ? (it.va1 ? 'c-va1' : 'c-va') : (CLS[it.cat] || 'c-res');
+    o.push('<rect class="seg '+cls+'" x="'+x1.toFixed(1)+'" y="'+(CENTER-Y.barH/2)+'" width="'+w.toFixed(1)+'" height="'+Y.barH+'"/>');
+    if (it.cat === 'shunt' && w > 3){
+      [-Y.barH/6, Y.barH/6].forEach(function(dy){
+        o.push('<line class="hatch" x1="'+(x1+0.6).toFixed(1)+'" y1="'+(CENTER+dy)+'" x2="'+(x1+w-0.6).toFixed(1)+'" y2="'+(CENTER+dy)+'"/>');
+      });
+    }
+    if (it.cat === 'break' && w > 11) o.push('<text class="in-break" x="'+(x1+w/2).toFixed(1)+'" y="'+(CENTER+4.5)+'" text-anchor="middle">P</text>');
+    o.push('<rect class="hit" x="'+(x1-3).toFixed(1)+'" y="'+(CENTER-16)+'" width="'+(w+6).toFixed(1)+'" height="32"/>');
+    o.push('</g>');
+  });
+
+  var rNum = -1e9, rAb = -1e9, rAn = -1e9;
+  duty.blocks.forEach(function(bl){
+    if (bl.end < a || bl.start > b) return;
+    var x1 = cx(bl.start), x2 = cx(bl.end), mid = (x1+x2)/2;
+    var n = bl.zusi && bl.zusi.von ? Math.min(3, bl.zusi.von) : 0;
+    for (var i=0;i<n;i++){
+      o.push('<line class="zs" x1="'+x1.toFixed(1)+'" y1="'+Y.zs[i]+'" x2="'+x2.toFixed(1)+'" y2="'+Y.zs[i]+'"/>');
+    }
+    if (bl.zug){
+      var w = tw(bl.zug, 9.5);
+      if (mid - w/2 > rNum + 4){ rNum = mid + w/2;
+        o.push('<text class="lbl-num" x="'+mid.toFixed(1)+'" y="'+Y.num+'" text-anchor="middle">'+esc(bl.zug)+'</text>'); }
+    }
+    var ab = bl.from.code || bl.from.name;
+    if (ab && bl.start >= a && x1 > rAb + 4){ rAb = x1 + tw(ab, 10);
+      o.push('<text class="lbl-st" x="'+x1.toFixed(1)+'" y="'+Y.stAb+'" text-anchor="start">'+esc(ab)+'</text>'); }
+    var an = bl.to.code || bl.to.name;
+    if (an && bl.end <= b && x2 - tw(an,10) > rAn + 4){ rAn = x2;
+      o.push('<text class="lbl-st" x="'+x2.toFixed(1)+'" y="'+Y.stAn+'" text-anchor="end">'+esc(an)+'</text>'); }
+  });
+
+  var stamps = [], seen = {};
+  duty.items.forEach(function(it){ [it.start, it.end].forEach(function(v){ if (!seen[v]){ seen[v]=1; stamps.push(v); } }); });
+  stamps.sort(function(p,q){ return p-q; });
+  var rows = [-1e9,-1e9,-1e9];
+  stamps.forEach(function(v){
+    if (v < a || v > b) return;
+    var px = X(v), variants = [hhmm(v), pad2(v%60)], k, r;
+    for (k=0;k<variants.length;k++){
+      var w = tw(variants[k], 9.5);
+      for (r=0;r<3;r++){
+        if (px - w/2 > rows[r] + 3){
+          rows[r] = px + w/2;
+          o.push('<text class="lbl-time" x="'+px.toFixed(1)+'" y="'+Y.t[r]+'" text-anchor="middle">'+variants[k]+'</text>');
+          return;
+        }
+      }
+    }
+  });
+
+  var rV = -1e9, rA = -1e9;
+  duty.items.forEach(function(it){
+    if (it.cat !== 'va' || it.end < a || it.start > b) return;
+    var mx = (cx(it.start) + cx(it.end)) / 2, w = tw(it.code, 9);
+    if (it.grade === 'A'){
+      if (mx - w/2 > rA + 3){ rA = mx + w/2;
+        o.push('<text class="lbl-va" x="'+mx.toFixed(1)+'" y="'+Y.a+'" text-anchor="middle">'+esc(it.code)+'</text>'); }
+    } else {
+      if (mx - w/2 > rV + 3){ rV = mx + w/2;
+        o.push('<text class="lbl-va" x="'+mx.toFixed(1)+'" y="'+Y.v+'" text-anchor="middle">'+esc(it.code)+'</text>'); }
+    }
+  });
+
+  var rAnm = -1e9;
+  (duty.notes || []).forEach(function(nt){
+    if (nt.min < a || nt.min > b) return;
+    var mx = X(nt.min);
+    if (mx < rAnm + 15) return;
+    rAnm = mx;
+    o.push('<g class="anm"><rect x="'+(mx-6.5).toFixed(1)+'" y="'+(Y.anm-9)+'" width="13" height="12" rx="2.5"/>' +
+           '<text x="'+mx.toFixed(1)+'" y="'+Y.anm+'" text-anchor="middle">'+nt.n+'</text></g>');
+  });
+
+  if (nowMin != null && nowMin >= a && nowMin <= b){
+    var nx = X(nowMin);
+    o.push('<line class="now" x1="'+nx.toFixed(1)+'" y1="'+Y.gridTop+'" x2="'+nx.toFixed(1)+'" y2="'+Y.gridBot+'"/>');
+    o.push('<text class="now-t" x="'+(nx+3).toFixed(1)+'" y="'+(Y.gridTop+9)+'">jetzt</text>');
+  }
+  o.push('</svg>');
+  return o.join('');
+}
+
+/* ===================== Oberfläche ===================== */
+var STATE = {duties:[], sel:0, mode:'2h', ppm:3, tab:'grafik', full:false, prefSaved:false};
+var $ = function(id){ return document.getElementById(id); };
+
+function loadPref(){
+  try{ var raw = localStorage.getItem('dpg.prefs');
+    if (raw){ var p = JSON.parse(raw); STATE.prefSaved = true;
+      if (p.mode) STATE.mode = p.mode; if (p.tab) STATE.tab = p.tab; if (p.full != null) STATE.full = !!p.full; }
+  }catch(e){}
+}
+function savePref(){
+  STATE.prefSaved = true;
+  try{ localStorage.setItem('dpg.prefs', JSON.stringify({mode:STATE.mode, tab:STATE.tab, full:STATE.full})); }catch(e){}
+}
+function showError(msg){ var el = $('err'); el.textContent = msg; el.hidden = false; }
+function clearError(){ $('err').hidden = true; }
+
+function nowFor(duty){
+  if (!duty.date) return null;
+  var d = new Date(), m = d.getHours()*60 + d.getMinutes();
+  if (d.getDate() === duty.date.d && (d.getMonth()+1) === duty.date.mo && d.getFullYear() === duty.date.y) return m;
+  var n = new Date(duty.date.y, duty.date.mo-1, duty.date.d+1);
+  if (d.getDate() === n.getDate() && d.getMonth() === n.getMonth() && d.getFullYear() === n.getFullYear() && m < 360) return m + 1440;
+  return null;
+}
+
+function renderPlan(){
+  var d = STATE.duties[STATE.sel];
+  if (!d) return;
+  var chips = STATE.duties.length > 1
+    ? '<div class="toolbar"><span class="hint">Dienst</span><div class="seg" id="dutySel">' +
+      STATE.duties.map(function(x,i){ return '<button type="button" aria-pressed="'+(i===STATE.sel)+'" data-d="'+i+'">'+esc(x.nr)+'</button>'; }).join('') +
+      '</div></div>' : '';
+  var extraVals = (d.extra || []).map(function(e){ return e.v; }).join(' ');
+  var note = '';
+  if (d.extra && d.extra.length){
+    note = '<b>' + d.extra.map(function(e){ return esc(e.k) + ': ' + esc(e.v); }).join('</b> \u00b7 <b>') + '</b>';
+    if (/reserve/i.test(extraVals)) note += '<br>Arbeit bei der zust\u00e4ndigen Stelle telefonisch erfragen.';
+    note = '<div class="duty-note">' + note + '</div>';
+  }
+  var pauseTxt = d.breaks.length ? d.breaks.map(function(p){ return hhmm(p.start)+'\u2013'+hhmm(p.end); }).join(', ') : 'keine';
+  var pauseMin = d.breaks.reduce(function(s,p){ return s + (p.end-p.start); }, 0);
+
+  $('plan').innerHTML =
+  '<div class="sheet">' +
+    '<div class="duty-head">' +
+      '<div class="duty-no">'+esc(d.nr)+'<span>'+esc(d.date ? d.date.label : 'Dienst')+'</span></div>' +
+      '<div class="facts">' +
+        '<div class="fact"><b>'+esc(d.beginn)+'</b><i>Beginn</i></div>' +
+        '<div class="fact"><b>'+esc(d.ende)+'</b><i>Ende</i></div>' +
+        '<div class="fact"><b>'+esc(d.arbeit)+'</b><i>Arbeitszeit</i></div>' +
+        '<div class="fact"><b>'+dur(d.endMin-d.startMin)+'</b><i>Dauer</i></div>' +
+        '<div class="fact"><b>'+(pauseMin?dur(pauseMin):'\u2013')+'</b><i>Pause '+esc(pauseTxt)+'</i></div>' +
+        (d.driveMin ? '<div class="fact"><b>'+dur(d.driveMin)+'</b><i>am Fahrzeug</i></div>' : '') +
+        (d.hof ? '<div class="fact" style="min-width:120px"><b style="font-size:15px">'+esc(d.hof)+'</b><i>Betriebshof</i></div>' : '') +
+      '</div>' +
+    '</div>' + note +
+    '<div class="tabs" id="tabs">' +
+      '<button class="tab" role="tab" data-tab="grafik" aria-selected="'+(STATE.tab==='grafik')+'">Grafik</button>' +
+      '<button class="tab" role="tab" data-tab="liste" aria-selected="'+(STATE.tab==='liste')+'">Tabelle</button>' +
+      '<button class="tab" role="tab" data-tab="legende" aria-selected="'+(STATE.tab==='legende')+'">Legende</button>' +
+    '</div>' + chips +
+    (STATE.tab === 'grafik' ? graphicShell(d) : STATE.tab === 'liste' ? listShell(d) : legendShell()) +
+  '</div>';
+
+  if (STATE.tab === 'grafik') drawGraphic();
+  bindPlan();
+}
+
+function notesList(d){
+  if (!d.notes || !d.notes.length) return '';
+  return '<div class="anmhead">Anmerkungen</div><ol class="anmlist">' +
+    d.notes.map(function(n){ return '<li>' + esc(n.text) + '</li>'; }).join('') + '</ol>';
+}
+function graphicShell(d){
+  var m = STATE.mode;
+  return '<div class="toolbar"><span class="hint">Zeilen&nbsp;je</span>' +
+      '<div class="seg" id="modeSel">' +
+        '<button type="button" data-m="2h" aria-pressed="'+(m==='2h')+'">2 h</button>' +
+        '<button type="button" data-m="3h" aria-pressed="'+(m==='3h')+'">3 h</button>' +
+        '<button type="button" data-m="4h" aria-pressed="'+(m==='4h')+'">4 h</button>' +
+        '<button type="button" data-m="breit" aria-pressed="'+(m==='breit')+'">am Stück</button>' +
+      '</div>' +
+      (m==='breit' ? '<div class="seg" id="zoomSel"><button type="button" data-z="-1">\u2212</button><button type="button" data-z="1">+</button></div>' : '') +
+    '</div>' +
+    '<div class="graphic" id="graphic"></div>' +
+    '<div class="detail" id="detail">Auf einen Balken tippen zeigt hier die Einzelheiten.</div>' +
+    notesList(d) +
+    '<div class="legend">' +
+      '<span><i class="key k-train"></i>Zugfahrt</span>' +
+      '<span><i class="key k-va1"></i>V1 / A1</span>' +
+      '<span><i class="key k-va"></i>Vor-/Abschluss sonstige</span>' +
+      '<span><i class="key k-res"></i>Reserve, Vor-/Nachbereitung</span>' +
+      '<span><i class="key k-shunt"></i>Leerzug / Rangierfahrt</span>' +
+      '<span><i class="key k-gast"></i>Gastfahrt / Taxi</span>' +
+      '<span>P&nbsp;= unbezahlte Pause</span>' +
+      '<span>Striche unter dem Balken = Zugstärke</span>' +
+    '</div>';
+}
+
+function drawGraphic(){
+  var host = $('graphic'); if (!host) return;
+  var d = STATE.duties[STATE.sel];
+  var avail = Math.max(280, host.clientWidth - 8);
+  var now = nowFor(d), html = '';
+  if (STATE.mode === 'breit'){
+    var w = PAD.l + PAD.r + (d.t1 - d.t0) * STATE.ppm;
+    html = '<div class="hscroll">' + strip(d, d.t0, d.t1 - d.t0, STATE.ppm, w, now) + '</div>';
+  } else {
+    var span = (parseInt(STATE.mode, 10) || 2) * 60;
+    var ppm = (avail - PAD.l - PAD.r) / span;
+    for (var t = d.t0; t < d.t1; t += span) html += strip(d, t, span, ppm, avail, now);
+  }
+  host.innerHTML = html;
+  host.querySelectorAll('.hit').forEach(function(el){
+    el.addEventListener('click', function(){
+      var g = el.parentNode;
+      host.querySelectorAll('g.sel').forEach(function(x){ x.classList.remove('sel'); });
+      g.classList.add('sel');
+      showDetail(STATE.duties[STATE.sel].items[parseInt(g.getAttribute('data-i'), 10)]);
+    });
+  });
+}
+
+function placeText(p){ return p.full && p.full !== p.name ? p.full : p.name; }
+function routeText(it){
+  var f = placeText(it.from), t = placeText(it.to);
+  var fc = it.from.code ? ' ['+it.from.code+']' : '', tc = it.to.code ? ' ['+it.to.code+']' : '';
+  if (!f && !t) return '';
+  if (f === t) return f + fc;
+  return f + fc + ' \u2192 ' + t + tc;
+}
+
+function metaBits(it, lang){
+  var b = [];
+  if (it.zug) b.push('Zug ' + it.zug + (it.zugAux ? ' (Rangieren)' : ''));
+  if (it.zusi) b.push(lang ? zsWord(it.zusi.von) + ', Tf im ' + it.zusi.pos + '. Fahrzeug' : it.zusi.pos + '/' + it.zusi.von);
+  if (it.fzg) b.push('Fahrzeug ' + it.fzg);
+  if (it.ref) b.push(it.ref.dir + ' Dienst ' + it.ref.nr);
+  return b;
+}
+
+function showDetail(it){
+  if (!it) return;
+  $('detail').innerHTML =
+    '<b>' + hhmm(it.start) + (it.end > it.start ? '\u2013' + hhmm(it.end) : '') + ' &nbsp;' + esc(it.label) + '</b><br>' +
+    '<span class="meta">' + esc(routeText(it)) + '</span>' +
+    (metaBits(it, true).length ? '<br><span class="meta">' + esc(metaBits(it, true).join(' \u00b7 ')) + '</span>' : '') +
+    (it.expl ? '<div class="expl">' + esc(it.expl) + '</div>' : '') +
+    ((it.notes || []).map(function(t, k){
+      return '<div class="note">[' + it.noteNums[k] + '] ' + esc(t) + '</div>'; }).join(''));
+}
+
+function listShell(d){
+  var rows = d.items.filter(function(it){ return STATE.full || it.major || it.cat === 'break' || it.cat === 'mark' || it.cat === 'va'; });
+  var body = rows.map(function(it){
+    var cls = it.cat === 'va' ? (it.va1 ? 'c-va1' : 'c-va') : (CLS[it.cat] || 'c-res');
+    var col = {'c-train':'var(--c-train)','c-va1':'var(--c-va1)','c-va':'var(--c-va)','c-shunt':'var(--c-shunt)','c-gast':'var(--c-gast)','c-res':'var(--c-res)','c-walk':'var(--c-walk)'}[cls];
+    var bits = metaBits(it, false);
+    return '<div class="row"><div class="t">' + hhmm(it.start) + (it.end > it.start ? '\u2013' + hhmm(it.end) : '') + '</div>' +
+      '<div class="c"><div class="k"><i class="bar" style="background:'+col+'"></i>' + esc(it.label) + '</div>' +
+      '<div class="r">' + esc(routeText(it)) + '</div>' +
+      (bits.length ? '<div class="x">' + esc(bits.join(' \u00b7 ')) + '</div>' : '') +
+      ((it.notes || []).map(function(t, k){
+        return '<div class="n">[' + it.noteNums[k] + '] ' + esc(t) + '</div>'; }).join('')) + '</div></div>';
+  }).join('');
+  return '<div class="toolbar"><label><input type="checkbox" id="chkFull"'+(STATE.full?' checked':'')+'> alle Schritte</label>' +
+    '<span class="hint">'+rows.length+' von '+d.items.length+' Zeilen</span></div><div class="list">'+body+'</div>';
+}
+
+var WEGE = 'Achern 13 2|Bad Herrenalb 2 4|Bad Wildbad 3 1|Baden-Baden 5 2|Betriebshof Gerwigstr 3 0|Betriebshof West 3 2|'+
+'Bretten 4 6|Bruchsal Gl.30/31 11 5|Bruchsal Gl.6/7/8/40 5 5|Eppingen 5 5|Ettlingen Stadt 3 3|Forbach 1 3|'+
+'Freudenstadt Hbf 6 2|Freudenstadt Stadt 1 3|Germersheim 7 15|Heilbronn Hbf DB 5 10|Heilbronn Hbf Vorplatz 5 5|'+
+'Heilbronn Pfühlpark 3 2|Hochstetten 1 3|Ittersbach 1 4|Karlsruhe Albtalbahnhof 2 4|Knielingen Rheinbergstr 3 1|'+
+'Menzingen 3 3|Mosbach-Neckarelz 5 10|Odenheim 3 6|Öhringen Cappel 7 2|Pforzheim Hbf 5 5|Rastatt 4 2|'+
+'Schwaigern West 3 2|Söllingen 0 0|Weinsberg 4 2|Wörth Badepark 4 2';
+
+function legendShell(){
+  var va = ['V1','V2','V3','V4','VF','VP','A1','A2','A3','A4','AF','AP'].map(function(k){
+    return '<tr><td class="c">'+k+'</td><td>'+esc(VA_TEXT[k])+'</td></tr>'; }).join('');
+  var abk = [['ET','ET 2010'],['NET','NET 2012'],['M','Mittelflurwagen'],['H','Hochflurwagen'],['TOI','Toilettenwagen'],
+    ['Gf','Gastfahrt'],['Taxi','Gastfahrt mit Taxi'],['Lt','Leertriebwagen'],['ZV','Zugverband'],['VZ','Vollzug'],
+    ['Res','Reserve'],['Rf','Rangierfahrt']].map(function(r){
+    return '<tr><td class="c">'+r[0]+'</td><td>'+esc(r[1])+'</td></tr>'; }).join('');
+  var zeit = [['Vorbereitung am Dienstbeginn','6 Min'],['Nachbereitung am Dienstende','4 Min'],
+    ['V1 Zweisystem-GT, pro Fahrzeug','14 Min'],['V1 NET 2012, pro Fahrzeug','13 Min'],['V1 Gleichstrom-GT, pro Fahrzeug','10 Min'],
+    ['V2, pro Zug','5 Min'],['V3 / VP / VF, pro Zug','1 Min'],['A1, pro Fahrzeug','7 Min'],['A2, pro Zug','5 Min'],
+    ['A3 / AP / AF, pro Zug','1 Min']].map(function(r){
+    return '<tr><td>'+esc(r[0])+'</td><td class="n">'+r[1]+'</td></tr>'; }).join('');
+  var wege = WEGE.split('|').map(function(e){
+    var m = /^(.*?)\s+(\d+)\s+(\d+)$/.exec(e); if (!m) return '';
+    return '<tr><td>'+esc(m[1])+'</td><td class="n">'+m[2]+'</td><td class="n">'+m[3]+'</td></tr>'; }).join('');
+
+  return '<div class="leg">' +
+    '<h3>Betriebsstelle suchen</h3>' +
+    '<input class="search" id="bstSearch" type="search" placeholder="Kürzel oder Name, z. B. RKSR oder Entenfang" autocomplete="off">' +
+    '<div class="hits" id="bstHits"><p class="note">' + Object.keys(BST).length + ' Betriebsstellen aus der Legende.</p></div>' +
+    '<h3>Technische Vor- und Abschlussdienste</h3><table>' + va + '</table>' +
+    '<h3>Zeiten (ohne Wege- und Rangierzeiten)</h3><table>' + zeit + '</table>' +
+    '<h3>Wege- und Rangierzeiten je Betriebsstelle</h3>' +
+    '<table><tr><td class="c">Betriebsstelle</td><td class="n">Weg</td><td class="n">Rangier</td></tr>' + wege + '</table>' +
+    '<h3>Wege zwischen Betriebsstellen</h3><table>' +
+    '<tr><td>Tullastraße nach Betriebshof Gerwigstraße</td><td class="n">5 Min</td></tr>' +
+    '<tr><td>Albtalbahnhof nach Karlsruhe Hbf, zu Bahnsteiggleisen</td><td class="n">10 Min</td></tr>' +
+    '<tr><td>Albtalbahnhof nach Karlsruhe Hbf, zu Abstellgleisen</td><td class="n">12 Min</td></tr>' +
+    '<tr><td>Karlsruhe Hbf vom Bahnsteig zu Abstellgleisen</td><td class="n">5 Min</td></tr>' +
+    '<tr><td>Karlsruhe Hbf rangieren zum Albtalbahnhof</td><td class="n">10 Min</td></tr>' +
+    '<tr><td>Karlsruhe Hbf rangieren zur Gleisgruppe 450 ff.</td><td class="n">10 Min</td></tr>' +
+    '<tr><td>Karlsruhe Hbf rangieren zu anderen Gleisen</td><td class="n">5 Min</td></tr>' +
+    '<tr><td>Heilbronn Hbf Vorplatz nach Heilbronn Hbf DB</td><td class="n">5 Min</td></tr></table>' +
+    '<h3>Abkürzungen</h3><table>' + abk + '</table>' +
+    '<h3>Anmeldung zum Dienst</h3><p class="note">Alle Einsatzstellen: Anmeldung über Tablet-PC per IVU.Pad, sonst Meldung an den Ad-Hoc-Disponenten, Tel. 0721 6107-6232.</p>' +
+    '<p class="note">Quelle: AVG-Schichtplanlegende, Stand 25.08.2025.</p></div>';
+}
+
+function bstSearch(q){
+  var out = $('bstHits'); if (!out) return;
+  q = q.trim().toLowerCase();
+  if (q.length < 2){ out.innerHTML = '<p class="note">' + Object.keys(BST).length + ' Betriebsstellen aus der Legende.</p>'; return; }
+  var rows = [];
+  for (var c in BST){
+    if (c.toLowerCase().indexOf(q) >= 0 || BST[c].toLowerCase().indexOf(q) >= 0){
+      rows.push('<tr><td class="c">'+esc(c)+'</td><td>'+esc(BST[c])+'</td></tr>');
+      if (rows.length >= 60) break;
+    }
+  }
+  out.innerHTML = rows.length ? '<table>'+rows.join('')+'</table>' : '<p class="note">Nichts gefunden.</p>';
+}
+
+function bindPlan(){
+  var tabs = $('tabs');
+  if (tabs) tabs.addEventListener('click', function(e){
+    var b = e.target.closest('.tab'); if (!b) return;
+    STATE.tab = b.getAttribute('data-tab'); savePref(); renderPlan();
+  });
+  var ms = $('modeSel');
+  if (ms) ms.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if (!b) return;
+    STATE.mode = b.getAttribute('data-m'); savePref(); renderPlan();
+  });
+  var zs = $('zoomSel');
+  if (zs) zs.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if (!b) return;
+    STATE.ppm = Math.min(9, Math.max(1.2, STATE.ppm * (parseInt(b.getAttribute('data-z'),10) > 0 ? 1.3 : 1/1.3)));
+    drawGraphic();
+  });
+  var ds = $('dutySel');
+  if (ds) ds.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if (!b) return;
+    STATE.sel = parseInt(b.getAttribute('data-d'), 10); renderPlan();
+  });
+  var cf = $('chkFull');
+  if (cf) cf.addEventListener('change', function(){ STATE.full = cf.checked; savePref(); renderPlan(); });
+  var se = $('bstSearch');
+  if (se) se.addEventListener('input', function(){ bstSearch(se.value); });
+}
+
+var resizeTimer = null;
+window.addEventListener('resize', function(){
+  if (STATE.tab !== 'grafik' || !STATE.duties.length) return;
+  clearTimeout(resizeTimer); resizeTimer = setTimeout(drawGraphic, 180);
+});
+
+function usePlan(result, sourceName){
+  if (!result.duties.length){
+    showError('In dieser Datei wurde kein Dienst gefunden. Sie sollte die Zeilen \u201eBeginn / Ende / Arbeitszeit\u201c und die T\u00e4tigkeiten enthalten. Bei gescannten PDFs funktioniert das Auslesen nicht.');
+    return;
+  }
+  clearError();
+  STATE.duties = result.duties; STATE.sel = 0;
+  $('intro').hidden = true; $('plan').hidden = false; $('foot').hidden = false;
+  $('btnReset').hidden = false; $('btnPrint').hidden = false;
+  $('subtitle').textContent = sourceName || 'grafisch aus der tabellarischen Datei';
+  if (!STATE.prefSaved && window.innerWidth >= 900) STATE.mode = '4h';
+  renderPlan(); window.scrollTo(0,0);
+}
+
+var PDF_SRC = [
+  ['https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js','https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'],
+  ['https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js','https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js']
+];
+var pdfLibPromise = null;
+function loadPdfLib(){
+  if (pdfLibPromise) return pdfLibPromise;
+  pdfLibPromise = new Promise(function(resolve, reject){
+    var i = 0;
+    (function next(){
+      if (i >= PDF_SRC.length){ reject(new Error('PDF-Bibliothek nicht erreichbar')); return; }
+      var pair = PDF_SRC[i++], s = document.createElement('script');
+      s.src = pair[0];
+      s.onload = function(){
+        if (window.pdfjsLib){ window.pdfjsLib.GlobalWorkerOptions.workerSrc = pair[1]; resolve(window.pdfjsLib); } else next();
+      };
+      s.onerror = next;
+      document.head.appendChild(s);
+    })();
+  });
+  return pdfLibPromise;
+}
+function readBuffer(file){
+  if (file.arrayBuffer) return file.arrayBuffer();
+  return new Promise(function(res, rej){
+    var fr = new FileReader();
+    fr.onload = function(){ res(fr.result); };
+    fr.onerror = function(){ rej(new Error('Datei nicht lesbar')); };
+    fr.readAsArrayBuffer(file);
+  });
+}
+function flatten(pages){
+  return pages.map(function(items){
+    var rows = {}, order = [];
+    items.forEach(function(it){
+      if (!it.s || !it.s.trim()) return;
+      var y = Math.round(it.y / 3);
+      if (!rows[y]){ rows[y] = []; order.push(y); }
+      rows[y].push(it);
+    });
+    order.sort(function(a,b){ return b - a; });
+    return order.map(function(y){
+      return rows[y].sort(function(a,b){ return a.x - b.x; }).map(function(o){ return o.s; }).join(' ');
+    }).join('\n');
+  }).join('\n');
+}
+function pdfExtract(buf){
+  return loadPdfLib().then(function(lib){
+    return lib.getDocument({data:buf, verbosity:0}).promise;
+  }).then(function(pdf){
+    var pages = [], chain = Promise.resolve();
+    for (var p = 1; p <= pdf.numPages; p++){
+      (function(n){
+        chain = chain.then(function(){
+          return pdf.getPage(n).then(function(page){ return page.getTextContent(); }).then(function(tc){
+            pages.push(tc.items.map(function(i){
+              return {s:i.str, x:i.transform[4], y:i.transform[5], w:i.width || 0};
+            }));
+          });
+        });
+      })(p);
+    }
+    return chain.then(function(){ return pages; });
+  });
+}
+function pdfFromFile(file){
+  return readBuffer(file).then(pdfExtract).then(function(pages){
+    var r = parsePlan(rebuild(pages));
+    if (!r.duties.length) r = parsePlan(flatten(pages));
+    return r;
+  });
+}
+
+function openFile(f){
+  if (!f) return;
+  clearError();
+  $('btnPick').textContent = 'wird gelesen \u2026';
+  pdfFromFile(f).then(function(result){
+    $('btnPick').textContent = 'PDF ausw\u00e4hlen';
+    usePlan(result, f.name.replace(/\.pdf$/i,''));
+  }).catch(function(err){
+    $('btnPick').textContent = 'PDF ausw\u00e4hlen';
+    showError('Das PDF konnte nicht gelesen werden (' + (err && err.message ? err.message : 'unbekannter Fehler') + '). Alternativ unten den Text der Tabelle einf\u00fcgen.');
+  });
+}
+
+loadPref();
+$('btnPick').addEventListener('click', function(){ $('file').click(); });
+$('file').addEventListener('change', function(e){ openFile(e.target.files && e.target.files[0]); e.target.value = ''; });
+var drop = $('drop');
+['dragenter','dragover'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.add('over'); }); });
+['dragleave','drop'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.remove('over'); }); });
+drop.addEventListener('drop', function(e){ openFile(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]); });
+$('btnDemo').addEventListener('click', function(){ usePlan(parsePlan(DEMO_TEXT), 'Beispiel 21.09.2026'); });
+$('btnPaste').addEventListener('click', function(){
+  var v = $('paste').value.trim();
+  if (!v){ showError('Es wurde kein Text eingef\u00fcgt.'); return; }
+  usePlan(parsePlan(v), 'eingef\u00fcgter Text');
+});
+$('btnReset').addEventListener('click', function(){
+  STATE.duties = [];
+  $('plan').hidden = true; $('plan').innerHTML = '';
+  $('intro').hidden = false; $('foot').hidden = true;
+  $('btnReset').hidden = true; $('btnPrint').hidden = true;
+  $('subtitle').textContent = 'grafisch aus der tabellarischen Datei';
+});
+function legendRow(){
+  return [['k-train','Zugfahrt'],['k-va1','V1 / A1'],['k-va','Vor-/Abschluss sonstige'],
+          ['k-res','Reserve, Vor-/Nachbereitung'],['k-shunt','Leerzug / Rangierfahrt'],
+          ['k-gast','Gastfahrt / Taxi']].map(function(r){
+    return '<span><i class="key '+r[0]+'"></i>'+r[1]+'</span>';
+  }).join('') + '<span>P = unbezahlte Pause</span><span>Striche unter dem Balken = Zugst\u00e4rke</span>';
+}
+function keyClass(it){
+  if (it.cat === 'va') return it.va1 ? 'k-va1' : 'k-va';
+  return {train:'k-train', shunt:'k-shunt', gast:'k-gast', res:'k-res',
+          'break':'k-res', walk:'k-walk', mark:'k-mark'}[it.cat] || 'k-res';
+}
+function shortPlace(p){
+  if (p.code) return p.code;
+  var n = p.name || '';
+  return n.length > 18 ? n.slice(0,17) + '\u2026' : n;
+}
+function shortLabel(it){
+  if (it.cat === 'va') return it.code;
+  if (it.cat === 'mark') return it.label + (it.ref ? ' ' + it.ref.nr : '');
+  var m = {VB:'Dienstbeginn', AB:'Dienstende', Leer:'Leerzug', Leerfahrt:'Leerzug',
+           Rangierfahrt:'Rangieren', Rf:'Rangieren', MitFt:'Gastfahrt', Mitfahrt:'Gastfahrt',
+           RES:'Reserve', Res:'Reserve', UNBPAU:'Pause', BEZPAU:'Pause'};
+  return m[it.code] || it.label;
+}
+function pvRow(it){
+  var t = hhmm(it.start) + (it.end > it.start ? '\u2013' + hhmm(it.end) : '');
+  var a = shortPlace(it.from), b = shortPlace(it.to);
+  var z = it.zug ? (it.zugAux ? '(' + it.zug + ')' : it.zug) : '';
+  if (it.zusi) z += (z ? ' ' : '') + it.zusi.pos + '/' + it.zusi.von;
+  var n = (it.noteNums || []).map(function(k){ return '[' + k + ']'; }).join('');
+  return '<div class="tr' + (it.cat === 'break' ? ' hl' : '') + '">' +
+    '<span class="tt">' + t + '</span>' +
+    '<i class="tc ' + keyClass(it) + '"></i>' +
+    '<span class="ta">' + esc(shortLabel(it)) + '</span>' +
+    '<span class="tp">' + esc(a === b ? a : a + '\u2192' + b) + '</span>' +
+    '<span class="tz">' + esc(z) + '</span>' +
+    '<span class="tf">' + esc(it.fzg || '') + '</span>' +
+    '<span class="tn">' + n + '</span></div>';
+}
+function buildPrint(){
+  var d = STATE.duties[STATE.sel];
+  if (!d) return;
+  var W = 1040, span = Math.max(60, d.t1 - d.t0);
+  var ppm = (W - PAD.l - PAD.r) / span;
+  var pause = d.breaks.length ? d.breaks.map(function(p){ return hhmm(p.start)+'\u2013'+hhmm(p.end); }).join(', ') : 'keine';
+  var facts = [['Beginn', d.beginn], ['Ende', d.ende], ['Arbeitszeit', d.arbeit],
+               ['Dauer', dur(d.endMin - d.startMin)], ['Pause', pause], ['Betriebshof', d.hof || '\u2013']];
+  if (d.driveMin) facts.push(['am Fahrzeug', dur(d.driveMin)]);
+  var h = '<div class="pv-head"><div class="pv-nr">' + esc(d.nr) + '</div><div class="pv-facts">' +
+    facts.map(function(f){ return '<span><i>' + esc(f[0]) + '</i>' + esc(f[1]) + '</span>'; }).join('') +
+    '</div><div class="pv-date">' + esc(d.date ? d.date.label : '') + '</div></div>';
+  if (d.extra && d.extra.length)
+    h += '<div class="pv-extra">' + d.extra.map(function(e){
+      return '<b>' + esc(e.k) + ':</b> ' + esc(e.v); }).join(' &nbsp;\u00b7&nbsp; ') + '</div>';
+  h += strip(d, d.t0, span, ppm, W, null);
+  h += '<div class="pv-legend">' + legendRow() + '</div>';
+  h += '<h4>Dienstablauf \u00b7 ' + d.items.length + ' Schritte</h4><div class="pv-tab">' +
+       d.items.map(pvRow).join('') + '</div>';
+  if (d.notes && d.notes.length)
+    h += '<h4>Anmerkungen</h4><ol class="pv-notes">' +
+         d.notes.map(function(n){ return '<li>' + esc(n.text) + '</li>'; }).join('') + '</ol>';
+  h += '<div class="pv-foot">Zeichen nach der AVG-Schichtplanlegende. Erstellt aus dem tabellarischen Dienstplan.</div>';
+  $('printview').innerHTML = h;
+}
+$('btnPrint').addEventListener('click', function(){ buildPrint(); setTimeout(function(){ window.print(); }, 60); });
+</script>
+</body>
+</html>
