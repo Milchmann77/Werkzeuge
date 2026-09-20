@@ -706,7 +706,7 @@ function buildDuty(h){
 
   var breaks = items.filter(function(i){ return i.cat === 'break'; });
   var driveMin = 0;
-  items.forEach(function(i){ if (i.cat === 'train' || (i.cat === 'shunt' && i.major)) driveMin += (i.end - i.start); });
+  items.forEach(function(i){ if (i.cat === 'train' || i.cat === 'shunt') driveMin += (i.end - i.start); });
 
   var extra = [];
   (h.extra || '').split(';').forEach(function(e){
@@ -1225,7 +1225,7 @@ function renderPlan(){
         '<div class="fact"><b>'+esc(d.arbeit)+'</b><i>Arbeitszeit</i></div>' +
         '<div class="fact"><b>'+dur(d.endMin-d.startMin)+'</b><i>Dauer</i></div>' +
         '<div class="fact"><b>'+(pauseMin?dur(pauseMin):'\u2013')+'</b><i>Pause '+esc(pauseTxt)+'</i></div>' +
-        (d.driveMin ? '<div class="fact"><b>'+dur(d.driveMin)+'</b><i>am Fahrzeug</i></div>' : '') +
+        (d.driveMin ? '<div class="fact"><b>'+dur(d.driveMin)+'</b><i>reine Fahrzeit</i></div>' : '') +
         (d.hof ? '<div class="fact" style="min-width:120px"><b style="font-size:15px">'+esc(d.hof)+'</b><i>Betriebshof</i></div>' : '') +
       '</div>' +
     '</div>' + note +
@@ -1620,7 +1620,7 @@ function buildPrint(){
   var pause = d.breaks.length ? d.breaks.map(function(p){ return hhmm(p.start)+'\u2013'+hhmm(p.end); }).join(', ') : 'keine';
   var facts = [['Beginn', d.beginn], ['Ende', d.ende], ['Arbeitszeit', d.arbeit],
                ['Dauer', dur(d.endMin - d.startMin)], ['Pause', pause], ['Betriebshof', d.hof || '\u2013']];
-  if (d.driveMin) facts.push(['am Fahrzeug', dur(d.driveMin)]);
+  if (d.driveMin) facts.push(['reine Fahrzeit', dur(d.driveMin)]);
   var h = '<div class="pv-head"><div class="pv-nr">' + esc(d.nr) + '</div><div class="pv-facts">' +
     facts.map(function(f){ return '<span><i>' + esc(f[0]) + '</i>' + esc(f[1]) + '</span>'; }).join('') +
     '</div><div class="pv-date">' + esc(d.date ? d.date.label : '') + '</div></div>';
