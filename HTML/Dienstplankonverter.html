@@ -513,7 +513,7 @@ function cleanText(raw){
   var t = String(raw).replace(/\u00a0/g,' ');
   t = t.replace(/https?:\/\/\S+/g,' ');
   t = t.replace(/Seite\s+\d+\s+von\s+\d+/gi,' ');
-  t = t.replace(/\b\d{2}[-.]\d{2}[-.]\d{4},?\s*\d{1,2}:\d{2}\b/g,' ');
+  t = t.replace(/\b\d{2}[-.]\d{2}[-.]\d{2,4},?\s*\d{1,2}:\d{2}\b/g,' ');
   t = t.replace(/\u2192|\u27f6|\u279c|-->|->|=>/g,' \u2192 ');
   t = t.replace(/\s+/g,' ');
   return ' ' + t.trim() + ' ';
@@ -652,17 +652,29 @@ function buildDuty(h){
   resolvePlaces(items);
 
   // Anzahl der Fahrzeuge je Abschnitt; fehlende Reihungen vom Abschnitt davor übernehmen
+  // Reihung je Abschnitt: bekannte Nummern, sonst aus dem Abschnitt davor fortschreiben
+  var prevSeq = null;
   items.forEach(function(it){
-    it.n = it.units.length || (it.zusi ? it.zusi.von : 0);
-  });
-  var prevUnits = null;
-  items.forEach(function(it){
-    if (it.units.length){ prevUnits = it.units.slice(); return; }
-    if (it.n && prevUnits && prevUnits.length === it.n){
-      it.units = prevUnits.slice();
-      if (it.code === 'Wenden' && it.zusi && it.zusi.pos === it.zusi.von && it.zusi.von > 1) it.units.reverse();
-      prevUnits = it.units.slice();
+    it.n = Math.max(it.units.length, it.zusi ? it.zusi.von : 0);
+    if (!it.n){ it.seq = []; return; }
+    var wende = it.code === 'Wenden' && it.zusi && it.zusi.pos === it.zusi.von && it.zusi.von > 1;
+    var carry = prevSeq ? prevSeq.slice() : null;
+    if (carry && wende) carry.reverse();
+    var seq;
+    if (it.units.length >= it.n){
+      seq = it.units.slice(0, it.n);
+    } else if (it.units.length){
+      var fits = carry && carry.length === it.n && it.units.every(function(u){ return carry.indexOf(u) >= 0; });
+      seq = fits ? carry : it.units.concat(new Array(it.n - it.units.length).fill(null));
+    } else if (carry && carry.length === it.n){
+      seq = carry;
+    } else if (carry && it.n < carry.length){
+      seq = carry.slice(0, it.n);
+    } else {
+      seq = new Array(it.n).fill(null);
     }
+    it.seq = seq;
+    prevSeq = seq.slice();
   });
 
   var b = toMin(h.beginn), e = toMin(h.ende);
@@ -721,14 +733,14 @@ function buildBlocks(items){
   var blocks = [];
   items.forEach(function(it){
     if (!it.major) return;
-    if (!it.zug && !it.units.length) return;
+    if (!it.zug && !it.n) return;
     var last = blocks[blocks.length-1];
-    var sig = it.units.join(',') + '|' + it.n;
+    var sig = it.seq.map(function(u){ return u || '?'; }).join(',');
     if (last && last.cat === it.cat && last.zug && it.zug && last.zug === it.zug &&
         it.start - last.end <= 4 && last.sig === sig){
       last.end = it.end; last.to = it.to; last.parts.push(it);
     } else {
-      blocks.push({cat:it.cat, zug:it.zug, zusi:it.zusi, sig:sig, units:it.units, n:it.n,
+      blocks.push({cat:it.cat, zug:it.zug, zusi:it.zusi, sig:sig, seq:it.seq, n:it.n,
                    start:it.start, end:it.end, from:it.from, to:it.to, parts:[it]});
     }
   });
@@ -805,7 +817,7 @@ var DEMO_TEXT = [
 
 /* ===== Aus den PDF-Koordinaten die Zeilen wiederherstellen ===== */
 /* Baut aus den Textteilen des PDFs die kanonischen Zeilen, die der Parser erwartet. */
-var LEFT = 110, GAP = 8, LBL = /^(Zugnummer|ZUSI|Fahrzeugnummer|(Von|An|Zu) Dienst)$/;
+var LEFT = 110, ANN = 145, GAP = 8, LBL = /^(Zugnummer|ZUSI|Fahrzeugnummer|(Von|An|Zu) Dienst)$/;
 
 function toLines(pages){
   var lines = [];
@@ -859,8 +871,36 @@ function splitRoute(routeLines){
   return [join(all.slice(0,best)), join(all.slice(best))];
 }
 
+function measureColumns(lines){
+  var tx = {}, cx = {};
+  lines.forEach(function(l){
+    var f = l.items[0];
+    if (/^https?:|^Seite \d+ von|^Details\b/.test(l.text)) return;
+    if (l.items.length === 1 && /^\d{1,2}:\d{2}\+?$/.test(f.s)) tx[Math.round(f.x)] = (tx[Math.round(f.x)] || 0) + 1;
+  });
+  var top = function(o){
+    var best = null, n = -1;
+    for (var k in o) if (o[k] > n){ n = o[k]; best = +k; }
+    return best;
+  };
+  var xT = top(tx);
+  if (xT === null) return;
+  lines.forEach(function(l){
+    var f = l.items[0];
+    if (/^https?:|^Seite \d+ von|^Details\b/.test(l.text)) return;
+    if (f.x > xT + 5) cx[Math.round(f.x)] = (cx[Math.round(f.x)] || 0) + 1;
+  });
+  var xC = top(cx);
+  if (xC === null || xC <= xT) return;
+  var d = xC - xT;
+  LEFT = xT + d * 0.5;
+  ANN  = xC + d * 0.45;
+  GAP  = Math.max(5, d * 0.18);
+}
+
 function rebuild(pages){
   var lines = toLines(pages), out = [], i, date = '';
+  measureColumns(lines);
   lines.forEach(function(l){
     var m = /(Mo|Di|Mi|Do|Fr|Sa|So)[a-z]*\.?,?\s*\d{2}\.\d{2}\.\d{4}/.exec(l.text);
     if (!date && m) date = m[0];
@@ -894,7 +934,7 @@ function rebuild(pages){
     var txt = gs.map(function(g){ return g.text; }).join(' ');
     if (!rec.act){ rec.act = txt; return; }
     var x0 = gs[0].x;
-    if (x0 >= 145 && /^\d{1,2}:\d{2}\s*[-\u2013]\s/.test(txt)){
+    if (x0 >= ANN && /^\d{1,2}:\d{2}\s*[-\u2013]\s/.test(txt)){
       rec.anm.push(txt); rec.inAnm = true; return;
     }
     if (rec.inAnm){ rec.anm[rec.anm.length-1] += ' ' + txt; return; }
@@ -1013,22 +1053,23 @@ function strip(duty, a, len, ppm, width, nowMin){
     var q1 = cx(it.start), q2 = cx(it.end);
     if (q2 - q1 < 0.6) q2 = q1 + 0.6;
     for (var k=0; k<Math.min(3, it.n); k++){
-      var fc = (it.units && it.units[k]) ? 'f-' + fzgTyp(it.units[k]) : 'f-unk';
+      var fc = (it.seq && it.seq[k]) ? 'f-' + fzgTyp(it.seq[k]) : 'f-unk';
       o.push('<line class="zs '+fc+'" x1="'+q1.toFixed(1)+'" y1="'+Y.zs[k]+'" x2="'+q2.toFixed(1)+'" y2="'+Y.zs[k]+'"/>');
     }
   });
   var rFz = -1e9, lastFz = '';
   duty.items.forEach(function(it){
-    if (!it.units || !it.units.length || it.end < a || it.start > b) return;
-    var rev = it.units.slice().reverse();
-    var plain = rev.join('-') + '\u2192';
+    if (!it.seq || !it.seq.length || it.end < a || it.start > b) return;
+    if (!it.seq.some(function(u){ return !!u; })) return;
+    var rev = it.seq.slice().reverse();
+    var plain = rev.map(function(u){ return u || '???'; }).join('-') + '\u2192';
     if (plain === lastFz) return;
     lastFz = plain;
     var q = Math.max(cx(it.start), PAD.l);
     if (q < rFz + 4) return;
     rFz = q + plain.length * 5.8;
     o.push('<text class="lbl-fzg" x="' + q.toFixed(1) + '" y="' + Y.fzg + '" text-anchor="start">' +
-      rev.map(function(u){ return '<tspan class="ft-' + fzgTyp(u) + '">' + esc(u) + '</tspan>'; }).join('-') +
+      rev.map(function(u){ return '<tspan class="ft-' + (u ? fzgTyp(u) : 'unk') + '">' + esc(u || '???') + '</tspan>'; }).join('-') +
       '\u2192</text>');
   });
 
@@ -1255,8 +1296,8 @@ function placeText(p){
   return t + (p.track ? ' Gl. ' + p.track : '');
 }
 function reihung(it){
-  if (!it.units || !it.units.length) return '';
-  return it.units.slice().reverse().join('-') + '\u2192';
+  if (!it.seq || !it.seq.length) return '';
+  return it.seq.slice().reverse().map(function(u){ return u || '???'; }).join('-') + '\u2192';
 }
 function routeText(it){
   var f = placeText(it.from), t = placeText(it.to);
@@ -1271,8 +1312,10 @@ function metaBits(it, lang){
   if (it.zug) b.push('Zug ' + it.zug + (it.zugAux ? ' (Rangieren)' : ''));
   if (it.n) b.push(zsWord(it.n));
   if (it.zusi && it.zusi.pos === it.zusi.von && it.zusi.von > 1) b.push('Reihung getauscht');
-  if (it.units && it.units.length) b.push('Reihung ' + reihung(it) +
-    (lang ? ' (' + it.units.map(function(u){ return u + ' ' + FZG_NAME[fzgTyp(u)]; }).join(', ') + ')' : ''));
+  var known = (it.seq || []).filter(function(u){ return !!u; });
+  if (known.length) b.push('Reihung ' + reihung(it) +
+    (lang ? ' (' + known.map(function(u){ return u + ' ' + FZG_NAME[fzgTyp(u)]; }).join(', ') + ')' : ''));
+  if (it.n > known.length && known.length) b.push('\u00fcbrige Fahrzeugnummer nicht im Plan');
   if (it.ref) b.push(it.ref.dir + ' Dienst ' + it.ref.nr);
   return b;
 }
