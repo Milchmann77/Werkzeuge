@@ -498,7 +498,19 @@ function fzgTyp(nr){
   if (n >= 923 && n <= 984) return 'et';
   return 'unk';
 }
-var FZG_NAME = {net:'NET 2012', gt8c:'GT8-100C/2S', gt8d:'GT8-100D/2S-M', et:'ET 2010', unk:'unbekannter Typ'};
+var FZG_NAME = {net:'NET 2012', gt8c:'GT8-100C/2S (Hochflur)', gt8d:'GT8-100D/2S-M (Mittelflur)',
+                et:'ET 2010', unk:'unbekannter Typ'};
+
+/* ET 2010 und NET 2012 lassen sich nur mit ihresgleichen kuppeln. Hochflur und Mittelflur
+   sind untereinander kuppelbar, daher bekommt ein unbekanntes Fahrzeug dort die Farbe des
+   bekannten. Ist nichts bekannt, bleibt es grau. */
+function inferTyp(seq){
+  var t = (seq || []).filter(Boolean).map(fzgTyp).filter(function(x){ return x !== 'unk'; });
+  if (!t.length) return 'unk';
+  if (t.indexOf('et') >= 0) return 'et';
+  if (t.indexOf('net') >= 0) return 'net';
+  return t[0];
+}
 
 function isAct(t){ return !!ACT[t] || /^[VA][0-9BFP]$/.test(t); }
 
@@ -661,7 +673,7 @@ function buildDuty(h){
   var prevSeq = null;
   items.forEach(function(it){
     it.n = Math.max(it.units.length, it.zusi ? it.zusi.von : 0);
-    if (!it.n){ it.seq = []; return; }
+    if (!it.n){ it.seq = []; it.types = []; return; }
     var wende = it.code === 'Wenden' && it.zusi && it.zusi.pos === it.zusi.von && it.zusi.von > 1;
     var carry = prevSeq ? prevSeq.slice() : null;
     if (carry && wende) carry.reverse();
@@ -679,6 +691,8 @@ function buildDuty(h){
       seq = new Array(it.n).fill(null);
     }
     it.seq = seq;
+    var base = inferTyp(seq);
+    it.types = seq.map(function(u){ return u ? fzgTyp(u) : base; });
     prevSeq = seq.slice();
   });
 
@@ -1058,7 +1072,7 @@ function strip(duty, a, len, ppm, width, nowMin){
     var q1 = cx(it.start), q2 = cx(it.end);
     if (q2 - q1 < 0.6) q2 = q1 + 0.6;
     for (var k=0; k<Math.min(3, it.n); k++){
-      var fc = (it.seq && it.seq[k]) ? 'f-' + fzgTyp(it.seq[k]) : 'f-unk';
+      var fc = 'f-' + ((it.types && it.types[k]) || 'unk');
       o.push('<line class="zs '+fc+'" x1="'+q1.toFixed(1)+'" y1="'+Y.zs[k]+'" x2="'+q2.toFixed(1)+'" y2="'+Y.zs[k]+'"/>');
     }
   });
@@ -1067,6 +1081,7 @@ function strip(duty, a, len, ppm, width, nowMin){
     if (!it.seq || !it.seq.length || it.end < a || it.start > b) return;
     if (!it.seq.some(function(u){ return !!u; })) return;
     var rev = it.seq.slice().reverse();
+    var revT = (it.types || []).slice().reverse();
     var plain = rev.map(function(u){ return u || '???'; }).join('-') + '\u2192';
     if (plain === lastFz) return;
     lastFz = plain;
@@ -1074,7 +1089,7 @@ function strip(duty, a, len, ppm, width, nowMin){
     if (q < rFz + 4) return;
     rFz = q + plain.length * 5.8;
     o.push('<text class="lbl-fzg" x="' + q.toFixed(1) + '" y="' + Y.fzg + '" text-anchor="start">' +
-      rev.map(function(u){ return '<tspan class="ft-' + (u ? fzgTyp(u) : 'unk') + '">' + esc(u || '???') + '</tspan>'; }).join('-') +
+      rev.map(function(u, i){ return '<tspan class="ft-' + (revT[i] || 'unk') + '">' + esc(u || '???') + '</tspan>'; }).join('-') +
       '\u2192</text>');
   });
 
@@ -1572,8 +1587,8 @@ function legendRow(){
           ['k-gast','Gastfahrt / Taxi']].map(function(r){
     return '<span><i class="key '+r[0]+'"></i>'+r[1]+'</span>';
   }).join('') + '<span>P = unbezahlte Pause</span>' +
-  '<span><i class="lk gt8d"></i>GT8-100D/2S-M</span>' +
-  '<span><i class="lk gt8c"></i>GT8-100C/2S</span>' +
+  '<span><i class="lk gt8d"></i>GT8-100D/2S-M (Mittelflur)</span>' +
+  '<span><i class="lk gt8c"></i>GT8-100C/2S (Hochflur)</span>' +
   '<span><i class="lk et"></i>ET 2010</span>' +
   '<span><i class="lk net"></i>NET 2012</span>' +
   '<span>Linien unter dem Balken = Fahrzeuge, oberste Linie ist die Spitze</span>' +
