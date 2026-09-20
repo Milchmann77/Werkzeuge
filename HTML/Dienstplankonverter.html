@@ -128,7 +128,14 @@ textarea{width:100%;min-height:130px;margin-top:8px;padding:10px;border-radius:8
 .strip .lbl-num{fill:var(--ink-soft);font-size:9.5px;font-weight:600}
 .strip .lbl-time{fill:var(--ink-soft);font-size:9.5px}
 .strip .lbl-va{font-size:9px;font-weight:700;fill:var(--c-vatext)}
-.strip .zs{stroke:var(--c-line);stroke-width:1.1}
+.strip .zs{stroke:var(--c-line);stroke-width:1.6;stroke-linecap:butt}
+.strip .f-et{stroke:#0ec108}
+.strip .f-net{stroke:#fe8208}
+.strip .f-gt8c{stroke:#d0021b}
+.strip .f-gt8d{stroke:var(--ink)}
+.strip .f-unk{stroke:var(--ink-soft)}
+.strip .lbl-fzg{font-size:8.5px;font-weight:600;fill:var(--ink-soft)}
+.strip .trk{fill:var(--c-va1);font-weight:700}
 .strip .seg{stroke:var(--c-line);stroke-width:1}
 .strip .c-train{fill:var(--c-train)}
 .strip .c-va1{fill:var(--c-va1)}
@@ -168,6 +175,11 @@ textarea{width:100%;min-height:130px;margin-top:8px;padding:10px;border-radius:8
 .k-shunt{background:repeating-linear-gradient(0deg,var(--c-shunt) 0 2px,var(--c-shunt2) 2px 3px)}
 .k-gast{background:var(--c-gast)}
 .k-walk{background:var(--c-walk)}
+.lk{width:20px;height:0;border-top:2.5px solid var(--ink);flex:none}
+.lk.et{border-color:#0ec108}
+.lk.net{border-color:#fe8208}
+.lk.gt8c{border-color:#d0021b}
+.lk.gt8d{border-color:var(--ink)}
 .k-mark{background:var(--c-train);border-radius:50%}
 
 .list{padding:4px 0 10px}
@@ -458,11 +470,22 @@ var ACT = {
   'Fußweg'       :{cat:'walk',  major:0, label:'Fußweg'},
   'Fussweg'      :{cat:'walk',  major:0, label:'Fußweg'},
   'Dienstgang'   :{cat:'walk',  major:0, label:'Dienstgang'},
-  'Übernahme'    :{cat:'mark',  major:0, label:'Übernahme'},
-  'Übergabe'     :{cat:'mark',  major:0, label:'Übergabe'},
-  'Abgabe'       :{cat:'mark',  major:0, label:'Abgabe'},
-  'Ablösung'     :{cat:'mark',  major:0, label:'Ablösung'}
+  'Übernahme'    :{cat:'va', major:0, grade:'V', short:'V3', label:'Übernahme (V3)'},
+  'Übergabe'     :{cat:'va', major:0, grade:'A', short:'A3', label:'Übergabe (A3)'},
+  'Abgabe'       :{cat:'va', major:0, grade:'A', short:'A3', label:'Abgabe (A3)'},
+  'Ablösung'     :{cat:'va', major:0, grade:'V', short:'V3', label:'Ablösung (V3)'}
 };
+
+function fzgTyp(nr){
+  var n = parseInt(nr, 10);
+  if (!(n > 0)) return 'unk';
+  if (n >= 326 && n <= 400) return 'net';
+  if (n >= 801 && n <= 836) return 'gt8c';
+  if (n >= 837 && n <= 922) return 'gt8d';
+  if (n >= 923 && n <= 984) return 'et';
+  return 'unk';
+}
+var FZG_NAME = {net:'NET 2012', gt8c:'GT8-100C/2S', gt8d:'GT8-100D/2S-M', et:'ET 2010', unk:'unbekannter Typ'};
 
 function isAct(t){ return !!ACT[t] || /^[VA][0-9BFP]$/.test(t); }
 
@@ -534,6 +557,10 @@ function placeCode(place){
   return null;
 }
 function placeName(place){ return place.split('/')[0].trim(); }
+function placeTrack(place){
+  var m = /#\s*([0-9]+(?:\.[0-9]+)?)/.exec(place);
+  return m ? m[1] : null;
+}
 function normName(n){ return n.split('_')[0].replace(/\s+/g,' ').trim(); }
 
 function parseRecord(r){
@@ -566,8 +593,8 @@ function parseRecord(r){
 
   return {
     code: code,
-    from: {raw:fromRaw, name:placeName(fromRaw), code:placeCode(fromRaw)},
-    to:   {raw:toRaw,   name:placeName(toRaw),   code:placeCode(toRaw)},
+    from: {raw:fromRaw, name:placeName(fromRaw), code:placeCode(fromRaw), track:placeTrack(fromRaw)},
+    to:   {raw:toRaw,   name:placeName(toRaw),   code:placeCode(toRaw),   track:placeTrack(toRaw)},
     zug: zug, zugAux: zugAux, zusi: zusi, fzg: fzg, ref: ref, anm: anm
   };
 }
@@ -604,16 +631,31 @@ function buildDuty(h){
     if (e < s) e += 1440;
     var info = actInfo(p.code);
     items.push({
-      start:s, end:e, code:p.code, cat:info.cat, major:!!info.major,
+      start:s, end:e, code:info.short || p.code, cat:info.cat, major:!!info.major,
       grade:info.grade || (/^V/.test(p.code) ? 'V' : (/^A/.test(p.code) ? 'A' : null)),
       va1: p.code === 'V1' || p.code === 'A1',
-      label:info.label, expl: VA_TEXT[p.code] || '',
+      label:info.label, expl: VA_TEXT[info.short || p.code] || '',
+      units: p.fzg ? p.fzg.split(',').map(function(x){ return x.trim(); }).filter(Boolean) : [],
       from:p.from, to:p.to, zug:p.zug, zugAux:p.zugAux, zusi:p.zusi, fzg:p.fzg, ref:p.ref,
       notes:(p.anm || []).map(function(k){ return noteTexts[k]; }).filter(Boolean)
     });
   });
 
   resolvePlaces(items);
+
+  // Anzahl der Fahrzeuge je Abschnitt; fehlende Reihungen vom Abschnitt davor übernehmen
+  items.forEach(function(it){
+    it.n = it.units.length || (it.zusi ? it.zusi.von : 0);
+  });
+  var prevUnits = null;
+  items.forEach(function(it){
+    if (it.units.length){ prevUnits = it.units.slice(); return; }
+    if (it.n && prevUnits && prevUnits.length === it.n){
+      it.units = prevUnits.slice();
+      if (it.code === 'Wenden' && it.zusi && it.zusi.pos === it.zusi.von && it.zusi.von > 1) it.units.reverse();
+      prevUnits = it.units.slice();
+    }
+  });
 
   var b = toMin(h.beginn), e = toMin(h.ende);
   if (e < b) e += 1440;
@@ -659,11 +701,15 @@ function buildBlocks(items){
   var blocks = [];
   items.forEach(function(it){
     if (!it.major) return;
+    if (!it.zug && !it.units.length) return;
     var last = blocks[blocks.length-1];
-    if (last && last.cat === it.cat && last.zug && it.zug && last.zug === it.zug && it.start - last.end <= 4){
+    var sig = it.units.join(',') + '|' + it.n;
+    if (last && last.cat === it.cat && last.zug && it.zug && last.zug === it.zug &&
+        it.start - last.end <= 4 && last.sig === sig){
       last.end = it.end; last.to = it.to; last.parts.push(it);
     } else {
-      blocks.push({cat:it.cat, zug:it.zug, zusi:it.zusi, start:it.start, end:it.end, from:it.from, to:it.to, parts:[it]});
+      blocks.push({cat:it.cat, zug:it.zug, zusi:it.zusi, sig:sig, units:it.units, n:it.n,
+                   start:it.start, end:it.end, from:it.from, to:it.to, parts:[it]});
     }
   });
   return blocks;
@@ -887,7 +933,7 @@ function rebuild(pages){
 
 /* ===================== Zeichnen ===================== */
 var PAD = {l:12, r:12};
-var Y = {rulerTop:13, gridTop:19, num:34, stAb:50, barTop:56, barH:26, zs:[87,90,93], stAn:105, t:[119,131,143], v:160, a:172, anm:188, gridBot:194, rulerBot:206, h:212};
+var Y = {rulerTop:13, gridTop:19, num:34, stAb:50, barTop:56, barH:26, zs:[87,90,93], fzg:104, stAn:115, t:[129,140,151], v:167, a:178, anm:194, gridBot:200, rulerBot:212, h:218};
 var CENTER = Y.barTop + Y.barH/2;
 var CLS = {train:'c-train', shunt:'c-shunt', gast:'c-gast', res:'c-res', va:'c-va', break:'c-res', walk:'c-walk', other:'c-res'};
 
@@ -941,25 +987,60 @@ function strip(duty, a, len, ppm, width, nowMin){
     o.push('</g>');
   });
 
+  // Fahrzeuglinien: jeder Abschnitt zeigt seine eigene Reihung, oberste Linie ist die Spitze
+  duty.items.forEach(function(it){
+    if (!it.n || it.end < a || it.start > b) return;
+    var q1 = cx(it.start), q2 = cx(it.end);
+    if (q2 - q1 < 0.6) q2 = q1 + 0.6;
+    for (var k=0; k<Math.min(3, it.n); k++){
+      var fc = (it.units && it.units[k]) ? 'f-' + fzgTyp(it.units[k]) : 'f-unk';
+      o.push('<line class="zs '+fc+'" x1="'+q1.toFixed(1)+'" y1="'+Y.zs[k]+'" x2="'+q2.toFixed(1)+'" y2="'+Y.zs[k]+'"/>');
+    }
+  });
+  var rFz = -1e9, lastFz = '';
+  duty.items.forEach(function(it){
+    if (!it.units || !it.units.length) return;
+    var lab = it.units.slice().reverse().join('-') + '\u2192';
+    var changed = (lab !== lastFz);
+    lastFz = lab;
+    if (!changed || it.end < a || it.start > b) return;
+    var q = cx(it.start);
+    if (q < rFz + 3) return;
+    rFz = q + tw(lab, 8.5);
+    o.push('<text class="lbl-fzg" x="'+q.toFixed(1)+'" y="'+Y.fzg+'" text-anchor="start">'+esc(lab)+'</text>');
+  });
+
+  var seenTrk = {};
+  function trkOf(pl){
+    if (!pl.track) return '';
+    var key = pl.code || pl.name;
+    if (seenTrk[key] === pl.track) return '';
+    seenTrk[key] = pl.track;
+    return pl.track;
+  }
   var rNum = -1e9, rAb = -1e9, rAn = -1e9;
   duty.blocks.forEach(function(bl){
     if (bl.end < a || bl.start > b) return;
     var x1 = cx(bl.start), x2 = cx(bl.end), mid = (x1+x2)/2;
-    var n = bl.zusi && bl.zusi.von ? Math.min(3, bl.zusi.von) : 0;
-    for (var i=0;i<n;i++){
-      o.push('<line class="zs" x1="'+x1.toFixed(1)+'" y1="'+Y.zs[i]+'" x2="'+x2.toFixed(1)+'" y2="'+Y.zs[i]+'"/>');
-    }
     if (bl.zug){
       var w = tw(bl.zug, 9.5);
       if (mid - w/2 > rNum + 4){ rNum = mid + w/2;
         o.push('<text class="lbl-num" x="'+mid.toFixed(1)+'" y="'+Y.num+'" text-anchor="middle">'+esc(bl.zug)+'</text>'); }
     }
     var ab = bl.from.code || bl.from.name;
-    if (ab && bl.start >= a && x1 > rAb + 4){ rAb = x1 + tw(ab, 10);
-      o.push('<text class="lbl-st" x="'+x1.toFixed(1)+'" y="'+Y.stAb+'" text-anchor="start">'+esc(ab)+'</text>'); }
+    if (ab && bl.start >= a && x1 > rAb + 4){
+      var tb = trkOf(bl.from);
+      rAb = x1 + tw(ab + (tb ? ' ' + tb : ''), 10);
+      o.push('<text class="lbl-st" x="'+x1.toFixed(1)+'" y="'+Y.stAb+'" text-anchor="start">'+esc(ab)+
+             (tb ? '<tspan class="trk"> '+esc(tb)+'</tspan>' : '')+'</text>');
+    }
     var an = bl.to.code || bl.to.name;
-    if (an && bl.end <= b && x2 - tw(an,10) > rAn + 4){ rAn = x2;
-      o.push('<text class="lbl-st" x="'+x2.toFixed(1)+'" y="'+Y.stAn+'" text-anchor="end">'+esc(an)+'</text>'); }
+    if (an && bl.end <= b && x2 - tw(an,10) > rAn + 4){
+      var ta = trkOf(bl.to);
+      rAn = x2;
+      o.push('<text class="lbl-st" x="'+x2.toFixed(1)+'" y="'+Y.stAn+'" text-anchor="end">'+esc(an)+
+             (ta ? '<tspan class="trk"> '+esc(ta)+'</tspan>' : '')+'</text>');
+    }
   });
 
   var stamps = [], seen = {};
@@ -1137,7 +1218,14 @@ function drawGraphic(){
   });
 }
 
-function placeText(p){ return p.full && p.full !== p.name ? p.full : p.name; }
+function placeText(p){
+  var t = (p.full && p.full !== p.name) ? p.full : p.name;
+  return t + (p.track ? ' Gl. ' + p.track : '');
+}
+function reihung(it){
+  if (!it.units || !it.units.length) return '';
+  return it.units.slice().reverse().join('-') + '\u2192';
+}
 function routeText(it){
   var f = placeText(it.from), t = placeText(it.to);
   var fc = it.from.code ? ' ['+it.from.code+']' : '', tc = it.to.code ? ' ['+it.to.code+']' : '';
@@ -1149,8 +1237,10 @@ function routeText(it){
 function metaBits(it, lang){
   var b = [];
   if (it.zug) b.push('Zug ' + it.zug + (it.zugAux ? ' (Rangieren)' : ''));
-  if (it.zusi) b.push(lang ? zsWord(it.zusi.von) + ', Tf im ' + it.zusi.pos + '. Fahrzeug' : it.zusi.pos + '/' + it.zusi.von);
-  if (it.fzg) b.push('Fahrzeug ' + it.fzg);
+  if (it.n) b.push(zsWord(it.n));
+  if (it.zusi && it.zusi.pos === it.zusi.von && it.zusi.von > 1) b.push('Reihung getauscht');
+  if (it.units && it.units.length) b.push('Reihung ' + reihung(it) +
+    (lang ? ' (' + it.units.map(function(u){ return u + ' ' + FZG_NAME[fzgTyp(u)]; }).join(', ') + ')' : ''));
   if (it.ref) b.push(it.ref.dir + ' Dienst ' + it.ref.nr);
   return b;
 }
@@ -1401,7 +1491,13 @@ function legendRow(){
           ['k-res','Reserve, Vor-/Nachbereitung'],['k-shunt','Leerzug / Rangierfahrt'],
           ['k-gast','Gastfahrt / Taxi']].map(function(r){
     return '<span><i class="key '+r[0]+'"></i>'+r[1]+'</span>';
-  }).join('') + '<span>P = unbezahlte Pause</span><span>Striche unter dem Balken = Zugst\u00e4rke</span>';
+  }).join('') + '<span>P = unbezahlte Pause</span>' +
+  '<span><i class="lk gt8d"></i>GT8-100D/2S-M</span>' +
+  '<span><i class="lk gt8c"></i>GT8-100C/2S</span>' +
+  '<span><i class="lk et"></i>ET 2010</span>' +
+  '<span><i class="lk net"></i>NET 2012</span>' +
+  '<span>Linien unter dem Balken = Fahrzeuge, oberste Linie ist die Spitze</span>' +
+  '<span>Zahl hinter dem Bahnhof = Gleis</span>';
 }
 function keyClass(it){
   if (it.cat === 'va') return it.va1 ? 'k-va1' : 'k-va';
