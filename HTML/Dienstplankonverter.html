@@ -665,9 +665,14 @@ function buildDuty(h){
   resolvePlaces(items);
 
   // Anzahl der Fahrzeuge je Abschnitt; fehlende Reihungen vom Abschnitt davor übernehmen
-  // Reihung je Abschnitt: bekannte Nummern, sonst aus dem Abschnitt davor fortschreiben
-  var prevSeq = null;
+  // Reihung je Abschnitt. Fortgeschrieben wird nur innerhalb einer Kette, also solange
+  // das Fahrzeug nicht verlassen wird. Pause, Vor- und Abschlussdienste beenden die Kette.
+  var prevSeq = null, chain = 0;
   items.forEach(function(it){
+    if (it.cat === 'break' || it.cat === 'va' || it.cat === 'signon' || it.cat === 'signoff'){
+      chain++; prevSeq = null;
+    }
+    it.chain = chain;
     it.n = Math.max(it.units.length, it.zusi ? it.zusi.von : 0);
     if (!it.n){ it.seq = []; it.types = []; return; }
     var wende = it.code === 'Wenden' && it.zusi && it.zusi.pos === it.zusi.von && it.zusi.von > 1;
@@ -1031,8 +1036,9 @@ function strip(duty, a, len, ppm, width, nowMin){
     var rev = it.seq.slice().reverse();
     var revT = (it.types || []).slice().reverse();
     var plain = rev.map(function(u){ return u || '???'; }).join('-') + '\u2192';
-    if (plain === lastFz) return;
-    lastFz = plain;
+    var key = it.chain + '|' + plain;
+    if (key === lastFz) return;
+    lastFz = key;
     var q = Math.max(cx(it.start), PAD.l);
     if (q < rFz + 4) return;
     rFz = q + plain.length * 5.8;
