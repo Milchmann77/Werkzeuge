@@ -83,7 +83,6 @@ button{font:inherit;color:inherit}
 .drop{border:1.5px dashed var(--rule);border-radius:10px;background:var(--sheet2);padding:26px 16px;text-align:center;transition:border-color .15s,background .15s}
 .drop.over{border-color:var(--green);background:var(--sheet)}
 .drop p{margin:10px 0 0;font-size:13px;color:var(--ink-soft)}
-.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 details.paste{margin-top:14px;font-size:14px}
 details.paste summary{cursor:pointer;color:var(--ink-soft)}
 textarea{width:100%;min-height:130px;margin-top:8px;padding:10px;border-radius:8px;border:1px solid var(--rule);background:var(--field);color:var(--ink);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
@@ -289,9 +288,6 @@ textarea{width:100%;min-height:130px;margin-top:8px;padding:10px;border-radius:8
       <p>oder Datei hierher ziehen</p>
     </div>
     <input type="file" id="file" accept="application/pdf,.pdf" hidden>
-    <div class="actions">
-      <button class="btn" id="btnDemo">Beispiel 5011 ansehen</button>
-    </div>
     <details class="paste">
       <summary>Kein PDF? Text der Tabelle einfügen</summary>
       <textarea id="paste" placeholder="Inhalt des tabellarischen Dienstplans hier einfügen"></textarea>
@@ -474,8 +470,8 @@ var ACT = {
   'BEZPAU'       :{cat:'break', major:0, label:'Bezahlte Pause'},
   'PAUSE'        :{cat:'break', major:0, label:'Pause'},
   'Pause'        :{cat:'break', major:0, label:'Pause'},
-  'VB'           :{cat:'res',   major:0, label:'Vorbereitung am Dienstbeginn'},
-  'AB'           :{cat:'res',   major:0, label:'Nachbereitung am Dienstende'},
+  'VB'           :{cat:'res',   major:0, label:'Vorbereitungszeit'},
+  'AB'           :{cat:'res',   major:0, label:'Nachbereitungszeit'},
   'Aufrüst'      :{cat:'va',    major:0, label:'Aufrüsten', grade:'V'},
   'Aufrüsten'    :{cat:'va',    major:0, label:'Aufrüsten', grade:'V'},
   'Abrüst'       :{cat:'va',    major:0, label:'Abrüsten', grade:'A'},
@@ -772,66 +768,18 @@ function parsePlan(raw){
   var hits = splitDuties(text);
   if (!hits.length) return {duties:[], date:date};
   var duties = hits.map(buildDuty).filter(function(d){ return d.items.length > 0; });
-  duties.forEach(function(d){ d.date = date; });
+  var scherz = date && date.d === 1 && date.mo === 4;
+  duties.forEach(function(d){
+    d.date = date;
+    if (!scherz) return;
+    d.items.forEach(function(it){
+      if (it.code === 'VB') it.label = 'mentale Vorbereitungszeit';
+      if (it.code === 'AB') it.label = 'Zeit f\u00fcr\u0027s Feierabendbierchen \ud83c\udf7a';
+    });
+  });
   return {duties:duties, date:date};
 }
 
-var DEMO_TEXT = [
-'Details Mo, 21.09.2026',
-'5011 Betriebshof Betriebshof West Beginn 11:35 Ende 21:29 Arbeitszeit 09:09',
-'11:35 11:41 VB Betriebshof West \u2192 Betriebshof West',
-'11:44 11:58 V1 Betriebshof West_Abstellung \u2192 Betriebshof West_Abstellung',
-'11:58 12:00 Rangierfahrt Betriebshof West_Abstellung / RBHW#B3 / RBHW#B3.4 \u2192 Betriebshof West / RBHW#2 / RBHW#2_AUSFAHRT Zugnummer (90312) ZUSI 1/1',
-'12:00 12:10 Leer Betriebshof West / RBHW#2 / RBHW#2_AUSFAHRT \u2192 Rheinbergstr. / RKSR#1 Zugnummer 90312 ZUSI 1/1',
-'12:10 12:11 Rangierfahrt Rheinbergstr. / RKSR#1 \u2192 Rheinbergstr._Abstellung / RKSR11 / RKSR11.2 Zugnummer (90312) ZUSI 1/1',
-'12:11 12:20 Wenden Rheinbergstr._Abstellung \u2192 Rheinbergstr._Abstellung',
-'12:20 12:21 Rangierfahrt Rheinbergstr._Abstellung / RKSR11 / RKSR11.2 \u2192 Rheinbergstr. / RKSR#2 Zugnummer (84819) ZUSI 1/1',
-'12:21 12:22 AF Rheinbergstr. \u2192 Rheinbergstr.',
-'12:22 12:31 MitFt Rheinbergstr. / RKSR#2 \u2192 Entenfang / RKEF#2 Zugnummer 84819 ZUSI 1/2 Fahrzeugnummer (867)',
-'12:31 12:41 RES Entenfang \u2192 Entenfang',
-'12:41 \u00dcbernahme Entenfang Von Dienst 6007',
-'12:42 13:17 Zugfahrt Entenfang / RKEF#2 \u2192 S\u00f6llingen Bf (AVG) / RSLV#32 / RSLV#32.1 Zugnummer 84901 ZUSI 1/1 Fahrzeugnummer (915)',
-'13:17 13:22 A2 S\u00f6llingen Bf (AVG) \u2192 S\u00f6llingen Bf (AVG)',
-'13:22 14:09 RES S\u00f6llingen Bf (AVG) \u2192 S\u00f6llingen Bf (AVG)',
-'14:09 14:45 MitFt S\u00f6llingen Bf (DB) / RSL#1 \u2192 Entenfang / RKEF#1 Zugnummer 85064 ZUSI 2/2 Fahrzeugnummer (906)',
-'14:45 \u00dcbernahme Entenfang Von Dienst 5073',
-'14:46 14:54 Zugfahrt Entenfang / RKEF#1 \u2192 Rheinbergstr. / RKSR#1 Zugnummer 85064 ZUSI 1/2 Fahrzeugnummer (906)',
-'14:54 15:15 Zugfahrt Rheinbergstr. / RKSR#1 \u2192 W\u00f6rth Badepark / RWRTK#2 Zugnummer 85064 ZUSI 1/1',
-'15:15 15:23 Wenden W\u00f6rth Badepark \u2192 W\u00f6rth Badepark',
-'15:23 15:40 Zugfahrt W\u00f6rth Badepark / RWRTK#2 \u2192 Rheinbergstr. / RKSR#2 Zugnummer 84999 ZUSI 1/1',
-'15:40 15:41 Zugfahrt Rheinbergstr. / RKSR#2 \u2192 Rheinbergstr. / RKSR#2 Zugnummer 84999 ZUSI 1/1',
-'15:41 15:42 AF Rheinbergstr. / RKSR#2 \u2192 Rheinbergstr. / RKSR#2',
-'15:45 15:50 RES Rheinbergstr._Pausenbereich \u2192 Rheinbergstr._Pausenbereich',
-'15:50 16:35 UNBPAU Rheinbergstr._Pausenbereich \u2192 Rheinbergstr._Pausenbereich',
-'16:35 17:01 RES Rheinbergstr._Pausenbereich \u2192 Rheinbergstr._Pausenbereich',
-'17:02 17:07 V2 Rheinbergstr._Abstellung \u2192 Rheinbergstr._Abstellung',
-'17:07 17:08 Rangierfahrt Rheinbergstr._Abstellung / RKSR11 / RKSR11.1 \u2192 Rheinbergstr. / RKSR#2 Zugnummer (84773) ZUSI 1/1 Fahrzeugnummer (890)',
-'17:08 17:12 Aufr\u00fcst Rheinbergstr. \u2192 Rheinbergstr.',
-'17:12 17:56 Zugfahrt Rheinbergstr. / RKSR#2 \u2192 S\u00f6llingen Bf (AVG) / RSLV#31 / RSLV#31.1 Zugnummer 84773 ZUSI 1/2 Fahrzeugnummer (890, 906)',
-'17:56 18:01 Wenden S\u00f6llingen Bf (AVG) \u2192 S\u00f6llingen Bf (AVG)',
-'18:01 18:44 Zugfahrt S\u00f6llingen Bf (AVG) / RSLV#31 / RSLV#31.2 \u2192 Rheinbergstr. / RKSR#1 Zugnummer 84766 ZUSI 1/2 Fahrzeugnummer (906, 890)',
-'18:44 18:45 Rangierfahrt Rheinbergstr. / RKSR#1 \u2192 Rheinbergstr._Abstellung / RKSR11 / RKSR11.1 Zugnummer (84766) ZUSI 1/2 Fahrzeugnummer (906, 890)',
-'18:45 18:50 A2 Rheinbergstr._Abstellung \u2192 Rheinbergstr._Abstellung',
-'18:53 19:10 RES Rheinbergstr._Abstellung \u2192 Rheinbergstr._Abstellung',
-'19:10 19:11 V2 Rheinbergstr._Abstellung \u2192 Rheinbergstr._Abstellung',
-'19:11 19:12 Rangierfahrt Rheinbergstr._Abstellung / RKSR11 / RKSR11.1 \u2192 Rheinbergstr. / RKSR#2 Zugnummer (84783) ZUSI 1/1 Fahrzeugnummer (906)',
-'19:12 19:51 Zugfahrt Rheinbergstr. / RKSR#2 \u2192 Berghausen Bf / RBGB#21 Zugnummer 84783 ZUSI 1/1 Fahrzeugnummer (906)',
-'19:51 19:52 Wenden Berghausen Bf \u2192 Berghausen Bf',
-'19:52 19:53 Zugfahrt Berghausen Bf / RBGB#21 \u2192 Berghausen Bf (Gl. 24) / RBGB X#1 Zugnummer 84783 ZUSI 1/1 Fahrzeugnummer (906)',
-'19:53 20:03 Wenden Berghausen Bf_Abstellung \u2192 Berghausen Bf_Abstellung',
-'20:03 20:04 Zugfahrt Berghausen Bf (Gl. 24) / RBGB X#1 \u2192 Berghausen Bf / RBGB#22 Zugnummer 84778 ZUSI 1/1 Fahrzeugnummer (906)',
-'20:04 20:05 Wenden Berghausen Bf \u2192 Berghausen Bf',
-'20:05 20:44 Zugfahrt Berghausen Bf / RBGB#22 \u2192 Rheinbergstr. / RKSR#1 Zugnummer 84778 ZUSI 1/1 Fahrzeugnummer (906)',
-'20:44 20:45 Rangierfahrt Rheinbergstr. / RKSR#1 \u2192 Rheinbergstr._Abstellung / RKSR11 / RKSR11.2 Zugnummer (84778) ZUSI 1/1 Fahrzeugnummer (906)',
-'20:45 20:46 A2 Rheinbergstr._Abstellung \u2192 Rheinbergstr._Abstellung',
-'20:46 20:54 RES Rheinbergstr._Abstellung \u2192 Rheinbergstr._Abstellung',
-'20:54 20:55 V2 Rheinbergstr._Abstellung \u2192 Rheinbergstr._Abstellung',
-'20:55 20:56 Rangierfahrt Rheinbergstr._Abstellung / RKSR11 / RKSR11.2 \u2192 Rheinbergstr. / RKSR#2 Zugnummer (90301) ZUSI 1/2 Fahrzeugnummer (906, 916)',
-'20:56 21:06 Leer Rheinbergstr. / RKSR#2 \u2192 Betriebshof West / RBHW#1 / RBHW#1_EINFAHRT Zugnummer 90301 ZUSI 1/2 Fahrzeugnummer (906, 916)',
-'21:06 21:08 Rangierfahrt Betriebshof West / RBHW#1 / RBHW#1_EINFAHRT \u2192 Betriebshof West_Abstellung / RBHW#B2 / RBHW#B2.1 Zugnummer (90301) ZUSI 1/2 Fahrzeugnummer (906, 916)',
-'21:08 21:22 A1 Betriebshof West_Abstellung \u2192 Betriebshof West_Abstellung',
-'21:25 21:29 AB Betriebshof West \u2192 Betriebshof West'
-].join('\n');
 /*PARSER>>*/
 
 /* ===== Aus den PDF-Koordinaten die Zeilen wiederherstellen ===== */
@@ -1568,7 +1516,6 @@ var drop = $('drop');
 ['dragenter','dragover'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.add('over'); }); });
 ['dragleave','drop'].forEach(function(ev){ drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.remove('over'); }); });
 drop.addEventListener('drop', function(e){ openFile(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]); });
-$('btnDemo').addEventListener('click', function(){ usePlan(parsePlan(DEMO_TEXT), 'Beispiel 21.09.2026'); });
 $('btnPaste').addEventListener('click', function(){
   var v = $('paste').value.trim();
   if (!v){ showError('Es wurde kein Text eingef\u00fcgt.'); return; }
