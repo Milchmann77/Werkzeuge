@@ -125,7 +125,15 @@ textarea{width:100%;min-height:130px;margin-top:8px;padding:10px;border-radius:8
 .strip .gl-day{stroke:var(--ink-soft);stroke-width:1.4}
 .strip .track{fill:var(--track)}
 .strip .lbl-st{font-weight:700;font-size:10px}
-.strip .lbl-num{fill:var(--ink-soft);font-size:9.5px;font-weight:600}
+.strip .lbl-num{fill:var(--ink);font-size:12px;font-weight:700}
+.strip .in-bar{font-size:13px;font-weight:700;letter-spacing:.02em}
+.strip .in-bar.on-dark{fill:var(--sheet)}
+.strip .in-bar.on-light{fill:var(--ink)}
+.strip .ft-et{fill:#0ec108}
+.strip .ft-net{fill:#fe8208}
+.strip .ft-gt8c{fill:#d0021b}
+.strip .ft-gt8d{fill:var(--ink)}
+.strip .ft-unk{fill:var(--ink-soft)}
 .strip .lbl-time{fill:var(--ink-soft);font-size:9.5px}
 .strip .lbl-va{font-size:9px;font-weight:700;fill:var(--c-vatext)}
 .strip .zs{stroke:var(--c-line);stroke-width:1.6;stroke-linecap:butt}
@@ -134,7 +142,7 @@ textarea{width:100%;min-height:130px;margin-top:8px;padding:10px;border-radius:8
 .strip .f-gt8c{stroke:#d0021b}
 .strip .f-gt8d{stroke:var(--ink)}
 .strip .f-unk{stroke:var(--ink-soft)}
-.strip .lbl-fzg{font-size:8.5px;font-weight:600;fill:var(--ink-soft)}
+.strip .lbl-fzg{font-size:10.5px;font-weight:700;fill:var(--ink)}
 .strip .trk{fill:var(--c-va1);font-weight:700}
 .strip .seg{stroke:var(--c-line);stroke-width:1}
 .strip .c-train{fill:var(--c-train)}
@@ -693,8 +701,20 @@ function buildDuty(h){
   return {
     nr:h.nr, hof:(h.hof||'').trim(), beginn:h.beginn, ende:h.ende, arbeit:h.arbeit, extra:extra,
     startMin:b, endMin:e, t0:Math.floor(b/60)*60, t1:Math.ceil(e/60)*60,
-    items:items, breaks:breaks, driveMin:driveMin, notes:notes, blocks:buildBlocks(items)
+    items:items, breaks:breaks, driveMin:driveMin, notes:notes,
+    blocks:buildBlocks(items), runs:buildRuns(items)
   };
+}
+
+function buildRuns(items){
+  var runs = [];
+  items.forEach(function(it){
+    if (!it.major || !it.zug) return;
+    var last = runs[runs.length-1];
+    if (last && last.zug === it.zug && it.start - last.end <= 4){ last.end = it.end; return; }
+    runs.push({zug:it.zug, cat:it.cat, start:it.start, end:it.end});
+  });
+  return runs;
 }
 
 function buildBlocks(items){
@@ -999,15 +1019,17 @@ function strip(duty, a, len, ppm, width, nowMin){
   });
   var rFz = -1e9, lastFz = '';
   duty.items.forEach(function(it){
-    if (!it.units || !it.units.length) return;
-    var lab = it.units.slice().reverse().join('-') + '\u2192';
-    var changed = (lab !== lastFz);
-    lastFz = lab;
-    if (!changed || it.end < a || it.start > b) return;
-    var q = cx(it.start);
-    if (q < rFz + 3) return;
-    rFz = q + tw(lab, 8.5);
-    o.push('<text class="lbl-fzg" x="'+q.toFixed(1)+'" y="'+Y.fzg+'" text-anchor="start">'+esc(lab)+'</text>');
+    if (!it.units || !it.units.length || it.end < a || it.start > b) return;
+    var rev = it.units.slice().reverse();
+    var plain = rev.join('-') + '\u2192';
+    if (plain === lastFz) return;
+    lastFz = plain;
+    var q = Math.max(cx(it.start), PAD.l);
+    if (q < rFz + 4) return;
+    rFz = q + plain.length * 5.8;
+    o.push('<text class="lbl-fzg" x="' + q.toFixed(1) + '" y="' + Y.fzg + '" text-anchor="start">' +
+      rev.map(function(u){ return '<tspan class="ft-' + fzgTyp(u) + '">' + esc(u) + '</tspan>'; }).join('-') +
+      '\u2192</text>');
   });
 
   var seenTrk = {};
@@ -1018,15 +1040,25 @@ function strip(duty, a, len, ppm, width, nowMin){
     seenTrk[key] = pl.track;
     return pl.track;
   }
-  var rNum = -1e9, rAb = -1e9, rAn = -1e9;
+  var rNum = -1e9;
+  (duty.runs || []).forEach(function(rn){
+    if (rn.end < a || rn.start > b) return;
+    var p1 = cx(rn.start), p2 = cx(rn.end), pm = (p1 + p2) / 2, pw = p2 - p1;
+    var t = String(rn.zug);
+    if (pw >= t.length * 7.4 + 7){
+      o.push('<text class="in-bar ' + (rn.cat === 'shunt' ? 'on-light' : 'on-dark') +
+             '" x="' + pm.toFixed(1) + '" y="' + (CENTER + 4.8) + '" text-anchor="middle">' + esc(t) + '</text>');
+    } else {
+      var wn = t.length * 6.6;
+      if (pm - wn/2 > rNum + 4){ rNum = pm + wn/2;
+        o.push('<text class="lbl-num" x="' + pm.toFixed(1) + '" y="' + Y.num + '" text-anchor="middle">' + esc(t) + '</text>'); }
+    }
+  });
+
+  var rAb = -1e9, rAn = -1e9;
   duty.blocks.forEach(function(bl){
     if (bl.end < a || bl.start > b) return;
-    var x1 = cx(bl.start), x2 = cx(bl.end), mid = (x1+x2)/2;
-    if (bl.zug){
-      var w = tw(bl.zug, 9.5);
-      if (mid - w/2 > rNum + 4){ rNum = mid + w/2;
-        o.push('<text class="lbl-num" x="'+mid.toFixed(1)+'" y="'+Y.num+'" text-anchor="middle">'+esc(bl.zug)+'</text>'); }
-    }
+    var x1 = cx(bl.start), x2 = cx(bl.end);
     var ab = bl.from.code || bl.from.name;
     if (ab && bl.start >= a && x1 > rAb + 4){
       var tb = trkOf(bl.from);
