@@ -262,7 +262,7 @@ textarea{width:100%;min-height:130px;margin-top:8px;padding:10px;border-radius:8
   #printview .tz{flex:none;white-space:nowrap;font-weight:600}
   #printview .tf{flex:none;white-space:nowrap;color:#222}
   #printview .tn{flex:none;white-space:nowrap;font-weight:700}
-  #printview .pv-notes{column-count:2;column-gap:8mm;margin:0;padding-left:6mm;font-size:9pt}
+  #printview .pv-notes{column-count:2;column-gap:8mm;margin:0 0 3.5mm;padding-left:6mm;font-size:9pt}
   #printview .pv-notes li{margin:0 0 1.2mm;break-inside:avoid}
   #printview .pv-notes li::marker{font-weight:700}
   #printview .pv-foot{margin-top:3mm;font-size:7.5pt;color:#555}
@@ -1601,11 +1601,11 @@ function buildPrint(){
       return '<b>' + esc(e.k) + ':</b> ' + esc(e.v); }).join(' &nbsp;\u00b7&nbsp; ') + '</div>';
   h += strip(d, d.t0, span, ppm, W, null);
   h += '<div class="pv-legend">' + legendRow() + '</div>';
-  h += '<h4>Dienstablauf \u00b7 ' + d.items.length + ' Schritte</h4><div class="pv-tab">' +
-       d.items.map(pvRow).join('') + '</div>';
   if (d.notes && d.notes.length)
     h += '<h4>Anmerkungen</h4><ol class="pv-notes">' +
          d.notes.map(function(n){ return '<li>' + esc(n.text) + '</li>'; }).join('') + '</ol>';
+  h += '<h4>Dienstablauf \u00b7 ' + d.items.length + ' Schritte</h4><div class="pv-tab">' +
+       d.items.map(pvRow).join('') + '</div>';
   h += '<div class="pv-foot">Zeichen nach der AVG-Schichtplanlegende. Erstellt aus dem tabellarischen Dienstplan.</div>';
   $('printview').innerHTML = h;
 }
