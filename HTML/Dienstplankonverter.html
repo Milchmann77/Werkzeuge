@@ -252,16 +252,16 @@ textarea{width:100%;min-height:130px;margin-top:8px;padding:10px;border-radius:8
     border-bottom:.5pt solid #999;padding-bottom:1px}
   #printview .pv-tab{column-count:3;column-gap:6mm;column-rule:.3pt solid #ddd;margin:0 0 3mm;
     font-family:"Barlow Semi Condensed",sans-serif;font-size:6.8pt;line-height:1.25}
-  #printview .tr{display:flex;gap:1.2mm;align-items:baseline;break-inside:avoid;
+  #printview .tr{display:flex;gap:1.6mm;align-items:baseline;break-inside:avoid;
     padding:.3mm 0;border-bottom:.3pt solid #e8e8e8}
   #printview .tr.hl{background:#f2f2f2}
   #printview .tt{width:17mm;flex:none;font-variant-numeric:tabular-nums;white-space:nowrap}
   #printview .tc{width:1.7mm;height:1.7mm;border:.4pt solid #000;flex:none;align-self:center}
-  #printview .ta{width:15mm;flex:none;white-space:nowrap;overflow:hidden}
-  #printview .tp{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  #printview .tz{width:13mm;flex:none;text-align:right;white-space:nowrap}
-  #printview .tf{width:13mm;flex:none;text-align:right;color:#555;white-space:nowrap;overflow:hidden}
-  #printview .tn{width:6mm;flex:none;text-align:right;font-weight:700}
+  #printview .ta{min-width:15mm;flex:none;white-space:nowrap}
+  #printview .tp{flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #printview .tz{flex:none;white-space:nowrap;font-weight:600}
+  #printview .tf{flex:none;white-space:nowrap;color:#222}
+  #printview .tn{flex:none;white-space:nowrap;font-weight:700}
   #printview .pv-notes{column-count:2;column-gap:8mm;margin:0;padding-left:6mm;font-size:9pt}
   #printview .pv-notes li{margin:0 0 1.2mm;break-inside:avoid}
   #printview .pv-notes li::marker{font-weight:700}
@@ -1564,7 +1564,7 @@ function shortPlace(p){
 function shortLabel(it){
   if (it.cat === 'va') return it.code;
   if (it.cat === 'mark') return it.label + (it.ref ? ' ' + it.ref.nr : '');
-  var m = {VB:'Dienstbeginn', AB:'Dienstende', Leer:'Leerzug', Leerfahrt:'Leerzug',
+  var m = {Leer:'Leerzug', Leerfahrt:'Leerzug',
            Rangierfahrt:'Rangieren', Rf:'Rangieren', MitFt:'Gastfahrt', Mitfahrt:'Gastfahrt',
            RES:'Reserve', Res:'Reserve', UNBPAU:'Pause', BEZPAU:'Pause'};
   return m[it.code] || it.label;
