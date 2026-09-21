@@ -255,9 +255,9 @@ textarea{width:100%;min-height:130px;margin-top:8px;padding:10px;border-radius:8
   #printview .tr{display:flex;gap:1.6mm;align-items:baseline;break-inside:avoid;
     padding:.3mm 0;border-bottom:.3pt solid #e8e8e8}
   #printview .tr.hl{background:#f2f2f2}
-  #printview .tt{width:17mm;flex:none;font-variant-numeric:tabular-nums;white-space:nowrap}
+  #printview .tt{width:13mm;flex:none;font-variant-numeric:tabular-nums;white-space:nowrap}
   #printview .tc{width:1.7mm;height:1.7mm;border:.4pt solid #000;flex:none;align-self:center}
-  #printview .ta{min-width:15mm;flex:none;white-space:nowrap}
+  #printview .ta{min-width:19.5mm;flex:none;white-space:nowrap}
   #printview .tp{flex:0 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   #printview .tz{flex:none;white-space:nowrap;font-weight:600}
   #printview .tf{flex:none;white-space:nowrap;color:#222}
@@ -1171,9 +1171,15 @@ function nowFor(duty){
   return null;
 }
 
+function docTitle(d){
+  var t = 'Dienst ' + d.nr;
+  if (d.date) t += ' - ' + d.date.label.slice(0,2) + '. ' + d.date.d + '.' + d.date.mo + '.' + d.date.y;
+  return t;
+}
 function renderPlan(){
   var d = STATE.duties[STATE.sel];
   if (!d) return;
+  document.title = docTitle(d);
   var chips = STATE.duties.length > 1
     ? '<div class="toolbar"><span class="hint">Dienst</span><div class="seg" id="dutySel">' +
       STATE.duties.map(function(x,i){ return '<button type="button" aria-pressed="'+(i===STATE.sel)+'" data-d="'+i+'">'+esc(x.nr)+'</button>'; }).join('') +
@@ -1537,6 +1543,7 @@ $('btnReset').addEventListener('click', function(){
   $('intro').hidden = false; $('foot').hidden = true;
   $('btnReset').hidden = true; $('btnPrint').hidden = true;
   $('subtitle').textContent = 'grafisch aus der tabellarischen Datei';
+  document.title = 'Dienstplan grafisch';
 });
 function legendRow(){
   return [['k-train','Zugfahrt'],['k-va1','V1 / A1'],['k-va','Vor-/Abschluss sonstige'],
