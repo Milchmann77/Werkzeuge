@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Dienstplan grafisch</title>
+<title>SIFA – Schichtplan in Farbe anzeigen</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
@@ -64,9 +64,23 @@ body{margin:0;height:100%;background:var(--paper);color:var(--ink);
 .topbar{position:sticky;top:0;z-index:20;padding:10px 14px;
   padding-top:calc(10px + env(safe-area-inset-top,0px));
   background:var(--sheet);border-bottom:1px solid var(--rule);display:flex;align-items:center;gap:12px}
-.topbar h1{font-family:"Barlow Semi Condensed","Barlow",sans-serif;font-size:19px;font-weight:700;margin:0;flex:1}
-.topbar h1 small{display:block;font-size:12px;font-weight:500;color:var(--ink-soft)}
-.rail{width:6px;align-self:stretch;min-height:34px;background:var(--green);border-radius:3px}
+.topbar h1{margin:0;flex:1;min-width:0;font-weight:normal}
+.topbar h1 small{display:block;font-size:12px;font-weight:500;color:var(--ink-soft);margin-top:3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* SIFA: grosse Anfangsbuchstaben, wo die Punkte stuenden die ausgeschriebenen Woerter */
+.logo{display:inline-flex;flex-direction:column;line-height:1}
+.lw{display:flex;align-items:baseline;white-space:nowrap;font-family:"Barlow Semi Condensed","Barlow",Arial Narrow,sans-serif}
+.lw b{font-size:30px;font-weight:700;color:var(--ink);letter-spacing:-.01em}
+.lw i{font-style:normal;font-size:8.5px;font-weight:600;color:var(--green);margin:0 3.5px 0 .5px;letter-spacing:.02em}
+.lw i:last-child{margin-right:0}
+.lbar{display:flex;height:3px;margin-top:3px}
+.lbar i{display:block;height:100%}
+.lbar .z{background:var(--c-train);flex:5}
+.lbar .v{background:var(--c-va);flex:1.2}
+.lbar .r{background:repeating-linear-gradient(0deg,var(--c-shunt) 0 1px,var(--c-shunt2) 1px 2px);flex:1.3}
+.lbar .g{background:var(--c-gast);flex:2}
+.lbar .v1{background:var(--c-va1);flex:1}
+@media (max-width:380px){ .lw b{font-size:26px} .lw i{font-size:7.5px;margin-right:3px} }
 
 main{max-width:1200px;margin:0 auto;padding:16px 12px 56px}
 button{font:inherit;color:inherit}
@@ -133,6 +147,8 @@ textarea{width:100%;min-height:130px;margin-top:8px;padding:10px;border-radius:8
 .strip .ft-gt8c{fill:#d0021b}
 .strip .ft-gt8d{fill:var(--ink)}
 .strip .ft-unk{fill:var(--ink-soft)}
+.strip .ft-lack{fill:#0ec108}
+.lack{color:#0ec108;font-weight:700}
 .strip .lbl-time{fill:var(--ink-soft);font-size:9.5px}
 .strip .lbl-va{font-size:9px;font-weight:700;fill:var(--c-vatext)}
 .strip .zs{stroke:var(--c-line);stroke-width:1.6;stroke-linecap:butt}
@@ -262,6 +278,8 @@ textarea{width:100%;min-height:130px;margin-top:8px;padding:10px;border-radius:8
   #printview .tz{flex:none;white-space:nowrap;font-weight:600}
   #printview .tf{flex:none;white-space:nowrap;color:#222}
   #printview .tn{flex:none;white-space:nowrap;font-weight:700}
+  #printview .tj{flex:none;white-space:nowrap;font-style:italic;margin-left:1mm}
+  #printview .lack{color:#0ec108;font-weight:700}
   #printview .pv-notes{column-count:2;column-gap:8mm;margin:0 0 3.5mm;padding-left:6mm;font-size:9pt}
   #printview .pv-notes li{margin:0 0 1.2mm;break-inside:avoid}
   #printview .pv-notes li::marker{font-weight:700}
@@ -273,8 +291,13 @@ textarea{width:100%;min-height:130px;margin-top:8px;padding:10px;border-radius:8
 <body>
 
 <div class="topbar">
-  <div class="rail" aria-hidden="true"></div>
-  <h1>Dienstplan<small id="subtitle">grafisch aus der tabellarischen Datei</small></h1>
+  <h1 class="brand">
+    <span class="logo" role="img" aria-label="SIFA – Schichtplan in Farbe anzeigen">
+      <span class="lw" aria-hidden="true"><b>S</b><i>chichtplan</i><b>I</b><i>n</i><b>F</b><i>arbe</i><b>A</b><i>nzeigen</i></span>
+      <span class="lbar" aria-hidden="true"><i class="z"></i><i class="v"></i><i class="z"></i><i class="r"></i><i class="g"></i><i class="v1"></i><i class="z"></i></span>
+    </span>
+    <small id="subtitle">grafisch aus der tabellarischen Datei</small>
+  </h1>
   <button class="btn btn-ghost" id="btnReset" hidden>Andere Datei</button>
   <button class="btn btn-ghost" id="btnPrint" hidden>PDF</button>
 </div>
@@ -507,6 +530,11 @@ function inferTyp(seq){
   if (t.indexOf('net') >= 0) return 'net';
   return t[0];
 }
+
+/* Osterei: diese beiden Fahrzeuge sind gruen lackiert */
+var LACKGRUEN = {'915':1, '930':1};
+var LACK_RE = new RegExp('(^|[^0-9])(' + Object.keys(LACKGRUEN).join('|') + ')(?![0-9])', 'g');
+function lackTag(html){ return String(html).replace(LACK_RE, '$1<span class="lack">$2</span>'); }
 
 function isAct(t){ return !!ACT[t] || /^[VA][0-9BFP]$/.test(t); }
 
@@ -778,8 +806,7 @@ function parsePlan(raw){
     d.date = date;
     if (!scherz) return;
     d.items.forEach(function(it){
-      if (it.code === 'VB') it.label = 'mentale Vorbereitungszeit';
-      if (it.code === 'AB') it.label = 'Zeit f\u00fcr\u0027s Feierabendbierchen \ud83c\udf7a';
+      if (it.code === 'AB') it.joke = 'Zeit f\u00fcr\u0027s Feierabendbierchen \ud83c\udf7a';
     });
   });
   return {duties:duties, date:date};
@@ -1043,7 +1070,7 @@ function strip(duty, a, len, ppm, width, nowMin){
     if (q < rFz + 4) return;
     rFz = q + plain.length * 5.8;
     o.push('<text class="lbl-fzg" x="' + q.toFixed(1) + '" y="' + Y.fzg + '" text-anchor="start">' +
-      rev.map(function(u, i){ return '<tspan class="ft-' + (revT[i] || 'unk') + '">' + esc(u || '???') + '</tspan>'; }).join('-') +
+      rev.map(function(u, i){ return '<tspan class="ft-' + (u && LACKGRUEN[u] ? 'lack' : (revT[i] || 'unk')) + '">' + esc(u || '???') + '</tspan>'; }).join('-') +
       '\u2192</text>');
   });
 
@@ -1309,7 +1336,8 @@ function showDetail(it){
   $('detail').innerHTML =
     '<b>' + hhmm(it.start) + (it.end > it.start ? '\u2013' + hhmm(it.end) : '') + ' &nbsp;' + esc(it.label) + '</b><br>' +
     '<span class="meta">' + esc(routeText(it)) + '</span>' +
-    (metaBits(it, true).length ? '<br><span class="meta">' + esc(metaBits(it, true).join(' \u00b7 ')) + '</span>' : '') +
+    (metaBits(it, true).length ? '<br><span class="meta">' + lackTag(esc(metaBits(it, true).join(' \u00b7 '))) + '</span>' : '') +
+    (it.joke ? '<div class="expl">' + esc(it.joke) + '</div>' : '') +
     (it.expl ? '<div class="expl">' + esc(it.expl) + '</div>' : '') +
     ((it.notes || []).map(function(t, k){
       return '<div class="note">[' + it.noteNums[k] + '] ' + esc(t) + '</div>'; }).join(''));
@@ -1324,7 +1352,8 @@ function listShell(d){
     return '<div class="row"><div class="t">' + hhmm(it.start) + (it.end > it.start ? '\u2013' + hhmm(it.end) : '') + '</div>' +
       '<div class="c"><div class="k"><i class="bar" style="background:'+col+'"></i>' + esc(it.label) + '</div>' +
       '<div class="r">' + esc(routeText(it)) + '</div>' +
-      (bits.length ? '<div class="x">' + esc(bits.join(' \u00b7 ')) + '</div>' : '') +
+      (bits.length ? '<div class="x">' + lackTag(esc(bits.join(' \u00b7 '))) + '</div>' : '') +
+      (it.joke ? '<div class="x">' + esc(it.joke) + '</div>' : '') +
       ((it.notes || []).map(function(t, k){
         return '<div class="n">[' + it.noteNums[k] + '] ' + esc(t) + '</div>'; }).join('')) + '</div></div>';
   }).join('');
@@ -1543,7 +1572,7 @@ $('btnReset').addEventListener('click', function(){
   $('intro').hidden = false; $('foot').hidden = true;
   $('btnReset').hidden = true; $('btnPrint').hidden = true;
   $('subtitle').textContent = 'grafisch aus der tabellarischen Datei';
-  document.title = 'Dienstplan grafisch';
+  document.title = 'SIFA \u2013 Schichtplan in Farbe anzeigen';
 });
 function legendRow(){
   return [['k-train','Zugfahrt'],['k-va1','V1 / A1'],['k-va','Vor-/Abschluss sonstige'],
@@ -1588,8 +1617,9 @@ function pvRow(it){
     '<span class="ta">' + esc(shortLabel(it)) + '</span>' +
     '<span class="tp">' + esc(a === b ? a : a + '\u2192' + b) + '</span>' +
     '<span class="tz">' + esc(z) + '</span>' +
-    '<span class="tf">' + esc(it.fzg || '') + '</span>' +
-    '<span class="tn">' + n + '</span></div>';
+    '<span class="tf">' + lackTag(esc(it.fzg || '')) + '</span>' +
+    '<span class="tn">' + n + '</span>' +
+    (it.joke ? '<span class="tj">' + esc(it.joke) + '</span>' : '') + '</div>';
 }
 function buildPrint(){
   var d = STATE.duties[STATE.sel];
